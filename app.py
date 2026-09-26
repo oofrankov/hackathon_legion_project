@@ -1,32 +1,29 @@
-"""FocusCheck entry point: python app.py [--debug] [--demo-report]"""
+"""FocusCheck entry point: python app.py [--debug] [--history] [--selftest] [--demo-report]"""
 import argparse
 import faulthandler
-import os
 import random
+import shutil
 import sys
 import threading
 import time
 import tkinter as tk
 from pathlib import Path
 
-# run from any cwd: all relative paths (models/, sessions/) are project-relative
-os.chdir(Path(__file__).resolve().parent)
-
-import config  # noqa: E402
-from monitors.input_activity import InputActivity  # noqa: E402
-from monitors.app_settings import enabled_count, load_settings, save_settings  # noqa: E402
-from monitors.window import Rules, WindowMonitor, is_wayland  # noqa: E402
-from report.history import build_history  # noqa: E402
-from report.report import build_report  # noqa: E402
-from session.advice import get_advice  # noqa: E402
-from session.recorder import SessionRecorder, next_session_number  # noqa: E402
-from session.summary import compute_summary  # noqa: E402
-from tracker.classifier import GazeTracker, StateSmoother, combine_state  # noqa: E402
-from tracker.face import FaceTracker  # noqa: E402
-from ui.apps_window import AppsWindow  # noqa: E402
-from ui.calibration_window import CalibrationWindow  # noqa: E402
-from ui.start_window import StartWindow  # noqa: E402
-from ui.widget import Widget, ask_recalibration, show_meme  # noqa: E402
+import config
+from monitors.app_settings import enabled_count, load_settings, save_settings
+from monitors.input_activity import InputActivity
+from monitors.window import Rules, WindowMonitor, is_wayland
+from report.history import build_history
+from report.report import build_report
+from session.advice import get_advice
+from session.recorder import SessionRecorder, next_session_number
+from session.summary import compute_summary
+from tracker.classifier import GazeTracker, StateSmoother, combine_state
+from tracker.face import FaceTracker
+from ui.apps_window import AppsWindow
+from ui.calibration_window import CalibrationWindow
+from ui.start_window import StartWindow
+from ui.widget import Widget, ask_recalibration, show_meme
 
 
 def beep(root):
@@ -51,6 +48,10 @@ class FocusCheckApp:
         self.root = tk.Tk(className=config.APP_WM_CLASS)  # WM_CLASS lets us ignore our own windows
         self.root.withdraw()
         self.root.title(config.TEXTS["app_title"])
+        try:
+            self.root.iconphoto(True, tk.PhotoImage(file=str(config.ICON_PNG)))
+        except tk.TclError:
+            pass
         self.debug = debug
         self.tracker = FaceTracker(debug=debug)
         self.input = InputActivity()
@@ -273,10 +274,95 @@ def demo_report():
     print("Report:", build_report(data))
 
 
+def migrate_legacy_data():
+    """Before v1.0 sessions/settings lived next to app.py; copy them once to the data dir."""
+    if getattr(sys, "frozen", False):
+        return
+    marker = config.DATA_DIR / ".migrated"
+    if marker.exists():
+        return
+    legacy = Path(__file__).resolve().parent
+    try:
+        if (legacy / "sessions").is_dir():
+            config.SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+            for f in (legacy / "sessions").iterdir():
+                target = config.SESSIONS_DIR / f.name
+                if f.is_file() and not target.exists():
+                    shutil.copy2(f, target)
+        old_settings = legacy / "user_settings.json"
+        if old_settings.exists() and not config.USER_SETTINGS_PATH.exists():
+            shutil.copy2(old_settings, config.USER_SETTINGS_PATH)
+        marker.touch()
+    except OSError as e:
+        print(f"[data] could not copy old sessions: {e}")
+
+
+def selftest():
+    """Checks a build without camera, windows or keyboard (used by CI). Exit code 0 = OK."""
+    lines, ok = [], True
+
+    def check(name, fn):
+        nonlocal ok
+        try:
+            fn()
+            lines.append(f"OK   {name}")
+        except Exception as e:
+            ok = False
+            lines.append(f"FAIL {name}: {type(e).__name__}: {e}")
+
+    def mediapipe_model():
+        import mediapipe as mp
+        import numpy as np
+        from mediapipe.tasks.python import BaseOptions, vision
+        options = vision.FaceLandmarkerOptions(
+            base_options=BaseOptions(model_asset_buffer=config.MODEL_PATH.read_bytes()),
+            running_mode=vision.RunningMode.IMAGE, num_faces=config.MAX_FACES,
+            output_facial_transformation_matrixes=True)
+        with vision.FaceLandmarker.create_from_options(options) as landmarker:
+            blank = mp.Image(image_format=mp.ImageFormat.SRGB, data=np.zeros((480, 640, 3), np.uint8))
+            landmarker.detect(blank)
+
+    def templates():
+        for rel in ("report/template.html", "report/history_template.html", "assets/icon.png"):
+            if not config.resource_path(rel).is_file():
+                raise FileNotFoundError(rel)
+
+    def input_backend():
+        if sys.platform.startswith("linux") and not __import__("os").environ.get("DISPLAY"):
+            return  # pynput's X11 backend needs a display (CI uses xvfb-run)
+        import pynput.keyboard  # noqa: F401
+        import pynput.mouse  # noqa: F401
+
+    def report_roundtrip():
+        import tempfile
+        summary = compute_summary([], 80, 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            build_report({"started_at": "2026-01-01T00:00:00", "events": [], "summary": summary,
+                          "advice": get_advice(summary)}, out_dir=tmp, open_browser=False)
+            build_history(tmp, open_browser=False)
+
+    check("modules imported", lambda: None)
+    check("tkinter", lambda: __import__("_tkinter"))
+    check("opencv", lambda: __import__("cv2"))
+    check("mediapipe model", mediapipe_model)
+    check("bundled files", templates)
+    check("input backend", input_backend)
+    check("report + history", report_roundtrip)
+    check("data dir writable", lambda: (config.DATA_DIR / ".selftest").write_text("ok"))
+    lines.append("SELFTEST " + ("PASSED" if ok else "FAILED"))
+    text = "\n".join(lines)
+    print(text)  # windowed builds have no console: also write a file for CI
+    try:
+        (config.DATA_DIR / "selftest.log").write_text(text + "\n", encoding="utf-8")
+    except OSError:
+        pass
+    return 0 if ok else 1
+
+
 def enable_crash_log():
     """On a native crash, dump thread stacks (file/function names only) to crash.log."""
     try:
-        log = open("crash.log", "w")
+        log = open(config.DATA_DIR / "crash.log", "w")
         faulthandler.enable(file=log, all_threads=True)
         return log
     except OSError:
@@ -289,7 +375,11 @@ def main():
     parser.add_argument("--debug", action="store_true", help="print head angles to console")
     parser.add_argument("--demo-report", action="store_true", help="open a report from fake data")
     parser.add_argument("--history", action="store_true", help="open stats of all past sessions")
+    parser.add_argument("--selftest", action="store_true", help="check the build without camera and exit")
     args = parser.parse_args()
+    if args.selftest:
+        sys.exit(selftest())
+    migrate_legacy_data()
     if args.history:
         print("History:", build_history())
         return

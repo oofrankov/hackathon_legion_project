@@ -1,5 +1,35 @@
-"""All thresholds, texts, lists and model names in one place."""
+"""All thresholds, texts, lists and paths in one place."""
+import os
 import sys
+from pathlib import Path
+
+APP_NAME = "FocusCheck"
+
+
+# --- Paths: work both from source and inside a PyInstaller build -----------
+def resource_path(relative: str) -> Path:
+    """Bundled read-only files (model, templates, images)."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / relative
+
+
+def user_data_dir() -> Path:
+    """Sessions and settings live here, never inside the (possibly read-only) app.
+    FOCUSCHECK_DATA_DIR overrides it (used by tests)."""
+    override = os.environ.get("FOCUSCHECK_DATA_DIR")
+    if override:
+        path = Path(override)
+    elif sys.platform == "win32":
+        path = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")) / APP_NAME
+    elif sys.platform == "darwin":
+        path = Path.home() / "Library" / "Application Support" / APP_NAME
+    else:
+        path = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / APP_NAME
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+DATA_DIR = user_data_dir()
 
 # --- Camera -------------------------------------------------------------
 CAMERA_INDEX = 0
@@ -7,7 +37,7 @@ CAMERA_WIDTH, CAMERA_HEIGHT = 640, 480
 TARGET_FPS = 12
 PREVIEW_W, PREVIEW_H = 324, 243   # camera view in the widget (memory only)
 PREVIEW_FPS = 12
-MODEL_PATH = "models/face_landmarker.task"
+MODEL_PATH = resource_path("models/face_landmarker.task")
 
 # Head-pose sign fixes. After `python app.py --debug`, pitch must grow when
 # you lower your head. If it shrinks instead, set PITCH_SIGN = -1.
@@ -73,8 +103,8 @@ DISTRACTION_CATALOG = [
     {"id": "messenger", "name": "Messenger", "group": "Messengers", "keywords": ["messenger"], "apps": ["messenger", "caprine"], "default": False},
 ]
 CATALOG_GROUPS = ["Social", "Video", "Messengers", "Games & music"]
-APP_WM_CLASS = "FocusCheck"                 # our own windows are ignored
-USER_SETTINGS_PATH = "user_settings.json"   # local preferences only, no observed data
+APP_WM_CLASS = APP_NAME                     # our own windows are ignored
+USER_SETTINGS_PATH = DATA_DIR / "user_settings.json"   # local preferences only, no observed data
 
 # --- Session ------------------------------------------------------------
 DEFAULT_SELF_ESTIMATE_PCT = 80
@@ -85,8 +115,9 @@ BEST_SEGMENT_MIN = 10
 UI_TICK_MS = 200
 NUDGE_FLASH_TIMES = 6
 MEME_POPUP_SEC = 4
-SESSIONS_DIR = "sessions"
-MEMES_DIR = "assets/memes"
+SESSIONS_DIR = DATA_DIR / "sessions"
+MEMES_DIR = resource_path("assets/memes")
+ICON_PNG = resource_path("assets/icon.png")
 
 # --- States -------------------------------------------------------------
 FOCUSED = "FOCUSED"

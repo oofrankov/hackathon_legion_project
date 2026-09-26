@@ -6,3 +6,9 @@ sessions/
 .pytest_cache/
 user_settings.json
 crash.log
+build/
+dist/
+packaging/AppDir/
+packaging/tools/
+*.AppImage
+*.egg-info/

@@ -14,42 +14,82 @@ Before the session you say how focused you expect to be (in %). After it you get
 
 HACK_002 Vienna · Track A1 "Applied AI for Consumers".
 
-## Run
+## Install
 
-Python 3.10–3.12 (MediaPipe has no wheels for 3.13 yet). On Linux use an **Xorg/X11** session: under Wayland the app warns you and counts every window as work.
+Download the file for your system from the repository's **Releases** page. You don't need Python.
+
+- **Windows**: download `FocusCheck-windows.zip`, unzip it, and run `FocusCheck\FocusCheck.exe`. If SmartScreen warns you, click **More info → Run anyway** (the app is not signed yet).
+- **macOS** (Apple Silicon): download `FocusCheck-macos.zip`, unzip it, and move `FocusCheck.app` to **Applications**. The first time, **right-click → Open** (the app is not signed). Allow camera access when asked. To enable window detection and keyboard activity, allow FocusCheck under **System Settings → Privacy & Security → Accessibility** and, if needed, **Screen Recording**.
+- **Linux**: download `FocusCheck-x86_64.AppImage`, then run:
+  ```bash
+  chmod +x FocusCheck-x86_64.AppImage && ./FocusCheck-x86_64.AppImage
+  ```
+  Log in with an **Xorg/X11** session (choose "Xorg" on the login screen). Under Wayland, window detection is off. If the AppImage does not start, install `libfuse2` (`sudo apt install libfuse2`) or run it with `--appimage-extract-and-run`.
+
+Your sessions and settings are stored here (never inside the app):
+
+| System | Folder |
+|---|---|
+| Windows | `%LOCALAPPDATA%\FocusCheck` |
+| macOS | `~/Library/Application Support/FocusCheck` |
+| Linux | `~/.local/share/FocusCheck` |
+
+Delete this folder to erase all your history.
+
+### For developers: run from source
+
+Use Python 3.10–3.12 (MediaPipe has no wheels for 3.13 yet).
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate          # Windows  (Linux/macOS: source .venv/bin/activate)
-pip install -r requirements.txt
+pip install -e ".[dev]"
 python app.py
 ```
 
 Everything works offline. The coaching tips in the report are simple rules over your session numbers; no AI service is called.
 
-Other commands:
-
 | Command | What it does |
 |---|---|
 | `python app.py --debug` | prints yaw/pitch/EAR to the console (numbers only) for tuning thresholds |
 | `python app.py --history` | opens stats of all past sessions |
+| `python app.py --selftest` | checks the install/build without camera, windows or keyboard (exit code 0 = OK) |
 | `python app.py --demo-report` | opens a report built from a fake 30-minute session, no camera needed |
-| `python -m pytest -q` | runs the classifier and metrics tests |
+| `python -m pytest -q` | runs the unit tests |
 
 The model `models/face_landmarker.task` is included. If it is missing, download it:
 `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task`
 
+### Building the apps
+
+```bash
+pip install -e ".[dev]"
+pyinstaller focuscheck.spec              # -> dist/FocusCheck/ (macOS: dist/FocusCheck.app)
+dist/FocusCheck/FocusCheck --selftest
+packaging/build_appimage.sh              # Linux only -> FocusCheck-x86_64.AppImage
+```
+
+GitHub Actions (`.github/workflows/build.yml`) builds all three systems automatically:
+
+- **Push a version tag** to build everything and attach the three files to a GitHub Release:
+  ```bash
+  git tag v1.0.0 && git push origin v1.0.0
+  ```
+- **Actions → Build & release → Run workflow** builds only; the files appear in the run's artifacts.
+
+Every build runs the unit tests and `--selftest`. The workflow uses no secrets.
+
 ## How it works
 
-0. **First launch**: choose which apps and sites count as distracting. The defaults come from the team's list: social networks and video are on, messengers are off because people need them for work communication. You can untick anything you need for work and add your own apps or sites (e.g. `chess.com`, `minecraft`). The choice is stored locally in `user_settings.json` and can be changed from the start screen.
+0. **First launch**: choose which apps and sites count as distracting. The defaults come from the team's list: social networks and video are on, messengers are off because people need them for work communication. You can untick anything you need for work and add your own apps or sites (e.g. `chess.com`, `minecraft`). The choice is stored locally in `user_settings.json` in your data folder and can be changed from the start screen.
 1. **Start**: open the app and press **Start session**. The session name is optional; if it is empty the app uses "Session N · HH:MM". You can set your focus estimate (%) with a slider. The reminder threshold and extra distracting sites are under "More settings".
 2. **Calibration** (10 s): look at a dot in the center and in the 4 corners. This records your "looking at the screen" head-pose range.
 3. **Widget** (Zoom-style, always on top, draggable): state, timer counting up (no preset length) and focus %, with Pause, camera view and Stop buttons.
    - **Compact mode** (default): a slim bar.
    - **Camera mode** (camera button): adds a small live camera view with the same info. The preview is shown only in this window and is kept in memory only.
 4. **Nudge**: after N seconds of continuous distraction the widget flashes red and beeps. If there are PNG/GIF files in `assets/memes/`, one of them pops up.
-5. **Report**: after Stop, a report opens in your browser. The session is saved to `sessions/`.
-6. **History** (`sessions/history.html`): overall stats and all past sessions. It shows total and focused time, overall focus %, the average gap between expected and real focus, the best session, distractions, a per-session chart (real vs. expected focus), where all the time went, and a table with a link to each report. Open it from the start screen ("View stats of past sessions" button, no session needed), from any report ("All sessions →"), or with `python app.py --history`. It is rebuilt after every session.
+5. **Report**: after Stop, a report opens in your browser. The session is saved to `sessions/` in your data folder (see [Install](#install)).
+6. **History** (`sessions/history.html` in the data folder): overall stats and all past sessions. It shows total and focused time, overall focus %, the average gap between expected and real focus, the best session, distractions, a per-session chart (real vs. expected focus), where all the time went, and a table with a link to each report. Open it from the start screen ("View stats of past sessions" button, no session needed), from any report ("All sessions →"), or with `python app.py --history`. It is rebuilt after every session.
 
 | Signals | State |
 |---|---|
@@ -78,6 +118,11 @@ FocusCheck follows only the person who calibrated, the **owner**. It recognises 
 - **Owner lock without biometrics.** If the owner leaves and someone else sits exactly in their place at the same distance from the camera, that person can be taken for the owner. This is a deliberate trade-off for not using face recognition.
 - Window detection needs an Xorg/X11 session on Linux (see above).
 
+- The builds are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper warn on first launch. Signing is planned after the hackathon.
+- CI can only check that each build installs, passes the tests and passes `--selftest`. Camera, windows and keyboard have to be tested by hand on each system.
+- Builds are large (~170 MB AppImage, ~450 MB unpacked) because of MediaPipe and OpenCV.
+- The macOS build is Apple Silicon only. Intel Macs would need an extra `macos-13` build.
+
 ## Privacy (hard rules)
 
 - Camera frames are processed in memory and **never saved or sent** anywhere.
@@ -86,20 +131,25 @@ FocusCheck follows only the person who calibrated, the **owner**. It recognises 
 - **Window titles, window classes and process names are never stored or logged.** They are turned into `work` / `distracting` in memory and discarded. No screenshots, no reading of window contents.
 - **Nothing is sent anywhere.** There is no cloud and no AI API; the tips are computed locally.
 - The camera is on only during a session and is turned off on Pause.
-- Everything is stored locally in `sessions/`. Delete the files to erase your history.
+- Everything is stored locally in your data folder (see [Install](#install)). Delete it to erase your history.
 - There are no accounts, no cloud and no "watch others" mode. It is a tool for yourself only.
 
 ## Project structure
 
 ```
-app.py               entry point, main loop (tkinter main thread)
-config.py            thresholds, keywords, texts
-tracker/             face.py (MediaPipe thread), calibration.py, classifier.py
-monitors/            window.py (active window category), input_activity.py (pynput)
-ui/                  start_window.py, calibration_window.py, widget.py
+app.py               entry point, main loop (tkinter main thread), --selftest
+config.py            thresholds, keywords, texts, resource_path() / user_data_dir()
+tracker/             face.py (MediaPipe thread), calibration.py, classifier.py, owner_lock.py
+monitors/            window.py (active window category), input_activity.py (pynput), app_settings.py
+ui/                  start_window.py, apps_window.py, calibration_window.py, widget.py
 session/             recorder.py (events → JSON), summary.py (metrics), advice.py (offline tips)
-report/              report.py + template.html (Chart.js)
+report/              report.py, history.py + HTML templates (Chart.js)
+assets/              icons (+ optional memes/)
 tests/               unit tests on synthetic data
+pyproject.toml       dependencies (platform-specific ones with markers)
+focuscheck.spec      PyInstaller build (onedir, windowed, macOS .app with camera permission text)
+packaging/           build_appimage.sh, focuscheck.desktop, make_icons.py
+.github/workflows/   build.yml: Windows / macOS / Linux builds + GitHub Release on tags
 ```
 
 ## Tuning

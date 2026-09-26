@@ -7,7 +7,7 @@ from pathlib import Path
 import config
 from report.report import report_filename
 
-TEMPLATE = Path(__file__).with_name("history_template.html")
+TEMPLATE = config.resource_path("report/history_template.html")
 HISTORY_FILE = "history.html"
 STATE_MIN_KEYS = {
     config.FOCUSED: "focused_min",

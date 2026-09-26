@@ -1,7 +1,10 @@
-opencv-python==4.11.0.86
+# Same as pyproject.toml (source of truth). Dev: pip install -e ".[dev]"
+opencv-contrib-python
 mediapipe==0.10.21
 numpy<2
-python-xlib            # Linux X11: active window, WM_CLASS, PID
-psutil                 # process name / exe of the active window
-pynput==1.8.2           # only the fact of keyboard/mouse activity, never keys
+pynput
+psutil
+python-xlib; sys_platform == "linux"
+pyobjc-framework-Cocoa; sys_platform == "darwin"
 pytest
+pyinstaller>=6.10

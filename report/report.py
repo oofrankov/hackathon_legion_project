@@ -6,7 +6,7 @@ from pathlib import Path
 
 import config
 
-TEMPLATE = Path(__file__).with_name("template.html")
+TEMPLATE = config.resource_path("report/template.html")
 
 
 def report_filename(started_at):

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "focuscheck"
+version = "1.0.0"
+description = "Honest focus tracking: head pose + active window + input activity, all on-device."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"   # MediaPipe 0.10.21 has no wheels for 3.13
+dependencies = [
+  # MediaPipe itself requires opencv-contrib-python; a second (headless) OpenCV
+  # would clash with it. We never open OpenCV windows (UI is tkinter).
+  "opencv-contrib-python",
+  "mediapipe==0.10.21",
+  "numpy<2",
+  "pynput",
+  "psutil",
+  "python-xlib; sys_platform == 'linux'",
+  "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pyinstaller>=6.10"]
+
+[project.scripts]
+focuscheck = "app:main"
+
+[tool.setuptools]
+py-modules = ["app", "config"]
+packages = ["tracker", "monitors", "ui", "session", "report"]
+
+[tool.setuptools.package-data]
+report = ["*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,118 @@
+name: Build & release
+
+# Builds FocusCheck for Windows, macOS and Linux with PyInstaller.
+# Tag push (v1.0.0, v1.1 ...) -> builds + GitHub Release with the three files.
+# Manual run (Actions tab -> Run workflow) -> builds only, files in the run's artifacts.
+# No secrets are used anywhere in this workflow.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: FocusCheck-windows.zip
+          - os: macos-latest          # Apple Silicon (arm64)
+            artifact: FocusCheck-macos.zip
+          - os: ubuntu-22.04          # older glibc -> AppImage runs on more distros
+            artifact: FocusCheck-x86_64.AppImage
+    runs-on: ${{ matrix.os }}
+    env:
+      FOCUSCHECK_DATA_DIR: ${{ github.workspace }}/ci-data   # keep test/selftest files out of $HOME
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Version from tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0-dev"; fi
+          echo "FOCUSCHECK_VERSION=$v" >> "$GITHUB_ENV"
+          echo "Version: $v"
+
+      - name: Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # xvfb: virtual display for the selftest (pynput's X11 backend); libgl/egl: OpenCV + MediaPipe
+          sudo apt-get install -y xvfb libgl1 libegl1
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install ".[dev]"
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+      - name: PyInstaller build
+        run: pyinstaller --noconfirm focuscheck.spec
+
+      - name: Selftest (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a dist/FocusCheck/FocusCheck --selftest
+
+      - name: Selftest (macOS)
+        if: runner.os == 'macOS'
+        run: dist/FocusCheck.app/Contents/MacOS/FocusCheck --selftest
+
+      - name: Selftest (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # windowed exe: wait for it explicitly and read its exit code + log
+          $p = Start-Process -FilePath "dist\FocusCheck\FocusCheck.exe" -ArgumentList "--selftest" -Wait -PassThru
+          Get-Content "$env:FOCUSCHECK_DATA_DIR\selftest.log"
+          exit $p.ExitCode
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist\FocusCheck -DestinationPath ${{ matrix.artifact }}
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent dist/FocusCheck.app ${{ matrix.artifact }}
+
+      - name: Package (Linux AppImage)
+        if: runner.os == 'Linux'
+        run: packaging/build_appimage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true

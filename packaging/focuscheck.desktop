@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=FocusCheck
+Comment=Honest focus tracking, all on your device
+Exec=FocusCheck
+Icon=focuscheck
+Categories=Utility;Education;
+Terminal=false
+StartupWMClass=Focuscheck

@@ -122,7 +122,8 @@ class FaceTracker:
 
         try:
             options = vision.FaceLandmarkerOptions(
-                base_options=BaseOptions(model_asset_path=config.MODEL_PATH),
+                # a buffer instead of a path: robust to non-ASCII paths inside app bundles
+                base_options=BaseOptions(model_asset_buffer=config.MODEL_PATH.read_bytes()),
                 running_mode=vision.RunningMode.VIDEO,
                 num_faces=config.MAX_FACES,
                 output_facial_transformation_matrixes=True,
