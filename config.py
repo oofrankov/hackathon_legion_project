@@ -25,6 +25,17 @@ NO_FACE_SEC = 2
 EAR_CLOSED_THRESHOLD = 0.2
 STATE_HOLD_SEC = 1.5            # lower = faster reaction, more flicker
 
+# --- Owner lock (no biometrics: only face position/size in the frame) ----
+MAX_FACES = 3
+OWNER_MAX_SHIFT = 0.15            # share of frame width the owner may move per 1 s
+OWNER_SIZE_RATIO_MIN = 0.7
+OWNER_SIZE_RATIO_MAX = 1.4
+OWNER_SMOOTHING = 0.2             # EMA factor for the owner's last position/size
+OWNER_RETURN_RADIUS = 0.2         # share of frame width around the calibration anchor
+OWNER_RETURN_HOLD_SEC = 1.5       # a returning face must stay in the zone this long
+OWNER_RECALIBRATE_AFTER_SEC = 300 # suggest recalibration after such a long absence
+CALIBRATION_MAX_MULTI_FACE_RATIO = 0.1  # more frames with 2+ faces -> repeat calibration
+
 # --- Input / window -----------------------------------------------------
 INPUT_ACTIVE_WINDOW_SEC = 5
 WINDOW_POLL_SEC = 1.0
@@ -152,6 +163,8 @@ TEXTS = {
     "calib_starting": "Starting camera…",
     "calib_fail": "I could not see your face well.\n"
                   "Sit straight in front of the camera and add some light.",
+    "calib_multi": "Only you should be in the frame during calibration.\n"
+                   "Ask others to step out of the camera view and try again.",
     "calib_retry": "Try again",
     "calib_cancel": "Cancel",
     "widget_rec": "● REC · stays on this device",
@@ -160,6 +173,10 @@ TEXTS = {
     "widget_nudge": "Back to work?",
     "widget_report": "Building report…",
     "widget_focus": "focus",
+    "widget_others": "+{n} other {people} in frame · ignored, not identified",
+    "recal_text": "Welcome back! You were away for a while.\nQuick 10-second recalibration?",
+    "recal_yes": "Recalibrate",
+    "recal_no": "Skip",
     "meme_caption": "Hey, your task misses you.",
     "privacy_footer": "Video never left your device. Only states and categories were saved.",
 }

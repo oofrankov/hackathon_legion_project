@@ -14,7 +14,7 @@ F = config.UI_FONT
 IS_WIN = sys.platform.startswith("win")
 KEY = "#010203"            # transparent key color for rounded corners (Windows)
 
-PAD, BAR_H, BTN = 8, 56, 36
+PAD, BAR_H, BTN, NOTICE_H = 8, 56, 36, 22
 W = config.PREVIEW_W + 2 * PAD
 
 
@@ -47,6 +47,7 @@ class Widget(tk.Toplevel):
         self.camera_view = False
         self.paused = False
         self.camera_on = True
+        self.others = 0                # other people in frame (ignored, not identified)
         self.disabled = False
         self._flash_job = None
         self._photo = None
@@ -56,7 +57,8 @@ class Widget(tk.Toplevel):
 
     # --- layout ----------------------------------------------------------
     def _height(self):
-        return (PAD + config.PREVIEW_H + BAR_H) if self.camera_view else BAR_H
+        h = (PAD + config.PREVIEW_H + BAR_H) if self.camera_view else BAR_H
+        return h + (NOTICE_H if self.others else 0)
 
     def _build(self):
         c = self.canvas
@@ -99,6 +101,13 @@ class Widget(tk.Toplevel):
         }
         for name in self._btn_centers:
             self._draw_button(name)
+
+        self.notice = None
+        if self.others:
+            ny = bar_top + BAR_H + NOTICE_H / 2 - 4
+            c.create_line(PAD + 6, bar_top + BAR_H - 2, W - PAD - 6, bar_top + BAR_H - 2, fill=UI["border"])
+            self.notice = c.create_text(PAD + 8, ny, anchor="w", fill=UI["muted"], font=(F, 8), tags="drag",
+                                        text=self._others_text())
 
         c.tag_bind("drag", "<ButtonPress-1>", self._drag_start)
         c.tag_bind("drag", "<B1-Motion>", self._drag_move)
@@ -160,8 +169,17 @@ class Widget(tk.Toplevel):
         self.geometry(f"+{self._x}+{self._y}")
 
     # --- updates ---------------------------------------------------------
-    def show(self, state, elapsed_sec, focus_pct, paused=False, camera_on=True):
+    def _others_text(self):
+        return T["widget_others"].format(n=self.others, people="person" if self.others == 1 else "people")
+
+    def show(self, state, elapsed_sec, focus_pct, paused=False, camera_on=True, others=0):
         c = self.canvas
+        if bool(others) != bool(self.others):   # the notice row appears/disappears
+            self.others = others
+            self._build()
+        elif others != self.others:
+            self.others = others
+            c.itemconfig(self.notice, text=self._others_text())
         if paused != self.paused or camera_on != self.camera_on:
             self.paused, self.camera_on = paused, camera_on
             self._draw_button("pause")
@@ -244,3 +262,23 @@ def show_meme(master, image_path, anchor_widget=None):
     pop.bind("<Button-1>", lambda _e: pop.destroy())
     lbl.bind("<Button-1>", lambda _e: pop.destroy())
     master.after(config.MEME_POPUP_SEC * 1000, lambda: pop.winfo_exists() and pop.destroy())
+
+
+def ask_recalibration(master, anchor_widget, on_yes):
+    """Owner is back after a long absence: offer a quick recalibration."""
+    pop = tk.Toplevel(master, bg=UI["panel"], highlightthickness=1, highlightbackground=UI["border"])
+    pop.overrideredirect(True)
+    pop.attributes("-topmost", True)
+    tk.Label(pop, text=T["recal_text"], bg=UI["panel"], fg=UI["text"], font=(F, 10),
+             justify="left").pack(padx=14, pady=(12, 8), anchor="w")
+    row = tk.Frame(pop, bg=UI["panel"])
+    row.pack(padx=14, pady=(0, 12), anchor="e")
+    btn = dict(relief="flat", bd=0, padx=12, pady=4, font=(F, 9, "bold"), cursor="hand2")
+    tk.Button(row, text=T["recal_no"], command=pop.destroy, bg=UI["field"], fg=UI["text"],
+              activebackground=UI["hover"], activeforeground=UI["text"], **btn).pack(side="left", padx=(0, 6))
+    tk.Button(row, text=T["recal_yes"], command=lambda: (pop.destroy(), on_yes()), bg=UI["accent"], fg="white",
+              activebackground=UI["accent_hover"], activeforeground="white", **btn).pack(side="left")
+    pop.update_idletasks()
+    x = anchor_widget.winfo_x() + anchor_widget.winfo_width() - pop.winfo_width()
+    y = anchor_widget.winfo_y() + anchor_widget.winfo_height() + 8
+    pop.geometry(f"+{max(0, x)}+{y}")

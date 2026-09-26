@@ -73,13 +73,14 @@ class CalibrationWindow(tk.Toplevel):
     def _finish(self):
         if self.calib.ok():
             result = self.calib.result()
+            anchor = self.calib.anchor()   # owner position/size, memory only, never logged
             print(f"[calibration] face {self.calib.face_ratio:.0%}, "
                   f"yaw {result.yaw_min:.1f}..{result.yaw_max:.1f}, "
                   f"pitch {result.pitch_min:.1f}..{result.pitch_max:.1f}, down > {result.down_threshold:.1f}")
             self.destroy()
-            self.on_done(result)
+            self.on_done(result, anchor)
         else:
-            self._fail(T["calib_fail"])
+            self._fail(T["calib_multi"] if self.calib.multi_face else T["calib_fail"])
 
     def _fail(self, text):
         if self.dot is not None:

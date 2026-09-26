@@ -28,7 +28,7 @@ from tracker.face import FaceTracker  # noqa: E402
 from ui.apps_window import AppsWindow  # noqa: E402
 from ui.calibration_window import CalibrationWindow  # noqa: E402
 from ui.start_window import StartWindow  # noqa: E402
-from ui.widget import Widget, show_meme  # noqa: E402
+from ui.widget import Widget, ask_recalibration, show_meme  # noqa: E402
 
 
 def beep(root):
@@ -84,6 +84,7 @@ class FocusCheckApp:
     def on_start(self, settings):
         self.settings = settings
         self.start_window.withdraw()
+        self.tracker.set_owner_anchor(None)   # calibration mode: exactly one face allowed
         self.tracker.start()
         CalibrationWindow(self.root, self.tracker, self.on_calibrated, self.on_calibration_cancel)
 
@@ -91,8 +92,9 @@ class FocusCheckApp:
         self.tracker.stop()
         self.start_window.deiconify()
 
-    def on_calibrated(self, calib):
+    def on_calibrated(self, calib, anchor):
         s = self.settings
+        self.tracker.set_owner_anchor(anchor)  # lock tracking on the owner (position/size only)
         self.gaze = GazeTracker(calib)
         self.smoother = StateSmoother()
         self.windows = WindowMonitor(Rules.from_settings(self.user_settings))
@@ -102,6 +104,7 @@ class FocusCheckApp:
         self.input.start()
 
         self.paused = False
+        self.recalibrating = False
         self.stopping = False
         self.camera_error_shown = False
         self.active_sec = 0.0          # session time without pauses
@@ -124,7 +127,10 @@ class FocusCheckApp:
         now = time.monotonic()
         dt, self.last_tick = now - self.last_tick, now
 
-        if not self.paused:
+        if self.tracker.consume_recalibration_hint() and not (self.paused or self.recalibrating):
+            ask_recalibration(self.root, self.widget, self.recalibrate)
+
+        if not (self.paused or self.recalibrating):
             if self.tracker.error and not self.camera_error_shown:
                 print(f"[camera] {self.tracker.error}")
                 self.camera_error_shown = True
@@ -148,8 +154,9 @@ class FocusCheckApp:
 
         n = len(self.recorder.events)
         focus_pct = round(self.focused_sec / n * 100) if n else 100
-        self.widget.show(self.state, self.active_sec, focus_pct,
-                         paused=self.paused, camera_on=self.tracker.camera_on)
+        others = 0 if self.paused else self.tracker.latest().others_count
+        self.widget.show(self.state, self.active_sec, focus_pct, paused=self.paused,
+                         camera_on=self.tracker.camera_on, others=others)
         self.root.after(config.UI_TICK_MS, self.tick)
 
     def check_nudge(self):
@@ -179,14 +186,38 @@ class FocusCheckApp:
         self.widget.set_frame(self.tracker.preview())
         self.root.after(int(1000 / config.PREVIEW_FPS), self.preview_loop)
 
+    # --- recalibration after a long absence ------------------------------
+    def recalibrate(self):
+        self.recalibrating = True             # session time does not run meanwhile
+        self._old_anchor, self._old_calib = self.tracker.owner_anchor(), self.gaze.calib
+        self.tracker.set_owner_anchor(None)
+        CalibrationWindow(self.root, self.tracker, self.on_recalibrated, self.on_recalibration_cancel)
+
+    def on_recalibrated(self, calib, anchor):
+        self.gaze.calib = calib
+        self.tracker.set_owner_anchor(anchor)
+        self.recalibrating = False
+        self.last_tick = time.monotonic()
+
+    def on_recalibration_cancel(self):
+        self.gaze.calib = self._old_calib
+        self.tracker.set_owner_anchor(self._old_anchor)
+        if not self.tracker.camera_on:
+            self.tracker.start()
+        self.recalibrating = False
+        self.last_tick = time.monotonic()
+
     # --- controls --------------------------------------------------------
     def toggle_pause(self):
+        if self.recalibrating:
+            return
         self.paused = not self.paused
         if self.paused:
             self.tracker.stop()          # camera is off during pause
             self.non_focus_since = None
         else:
             self.tracker.start()
+            self.tracker.owner_touch()   # a pause is not an absence: keep following the owner
             self.smoother = StateSmoother(initial=self.state)
         self.last_tick = time.monotonic()
 
@@ -195,6 +226,7 @@ class FocusCheckApp:
             return
         self.stopping = True
         self.tracker.stop()
+        self.tracker.set_owner_anchor(None)   # the owner anchor lives only during the session
         self.input.stop()
         self.widget.set_message(config.TEXTS["widget_report"])
         rec = self.recorder

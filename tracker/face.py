@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import config
+from tracker.owner_lock import OwnerLock, box_from_landmarks
 
 LEFT_EYE = (33, 160, 158, 133, 153, 144)
 RIGHT_EYE = (362, 385, 387, 263, 373, 380)
@@ -19,12 +20,15 @@ RIGHT_EYE = (362, 385, 387, 263, 373, 380)
 @dataclass
 class FaceSignals:
     ts: float = 0.0               # time of the last processed frame
-    face_present: bool = False
+    face_present: bool = False    # the OWNER's face (other faces never count)
     yaw: float = 0.0              # degrees
     pitch: float = 0.0            # degrees, > 0 = head down
     ear: float = 0.0              # eye aspect ratio
-    last_face_ts: float = 0.0     # when a face was last seen
+    last_face_ts: float = 0.0     # when the owner's face was last seen
     frame_id: int = 0
+    faces_count: int = 0          # all faces in the frame
+    others_count: int = 0         # faces that are not the owner (ignored)
+    calib_box: Optional[tuple] = None  # (cx, cy, size) of the single face, calibration only
 
 
 def angles_from_matrix(m):
@@ -60,6 +64,7 @@ class FaceTracker:
         self.camera_on = False
         self.preview_enabled = False
         self._preview = None      # PPM bytes of the latest preview frame
+        self._owner = OwnerLock()  # memory only; cleared at session end
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -76,6 +81,30 @@ class FaceTracker:
         if self._thread:
             self._thread.join(timeout=3)
         self._thread = None
+
+    # --- owner lock (thread-safe wrappers) -------------------------------
+    def set_owner_anchor(self, anchor):
+        """anchor = ((cx, cy), size) from calibration, or None to forget the owner."""
+        with self._lock:
+            if anchor is None:
+                self._owner.clear()
+            else:
+                self._owner.set_anchor(anchor[0], anchor[1], time.monotonic())
+
+    def owner_anchor(self):
+        with self._lock:
+            a = self._owner.anchor
+            return ((a.cx, a.cy), a.size) if a else None
+
+    def owner_touch(self):
+        with self._lock:
+            self._owner.touch(time.monotonic())
+
+    def consume_recalibration_hint(self):
+        with self._lock:
+            hint = self._owner.recalibration_suggested
+            self._owner.recalibration_suggested = False
+            return hint
 
     def preview(self):
         with self._lock:
@@ -95,7 +124,7 @@ class FaceTracker:
             options = vision.FaceLandmarkerOptions(
                 base_options=BaseOptions(model_asset_path=config.MODEL_PATH),
                 running_mode=vision.RunningMode.VIDEO,
-                num_faces=1,
+                num_faces=config.MAX_FACES,
                 output_facial_transformation_matrixes=True,
             )
             landmarker = vision.FaceLandmarker.create_from_options(options)
@@ -132,7 +161,9 @@ class FaceTracker:
                 if self.preview_enabled:
                     small = cv2.resize(cv2.flip(frame, 1), (config.PREVIEW_W, config.PREVIEW_H))
                     preview = cv2.imencode(".ppm", small)[1].tobytes()
+                aspect = frame.shape[0] / frame.shape[1]
                 del frame, rgb, image  # only the small in-memory preview outlives this loop
+                boxes = [box_from_landmarks(lms, aspect) for lms in result.face_landmarks]
 
                 now = time.monotonic()
                 with self._lock:
@@ -140,11 +171,24 @@ class FaceTracker:
                     s.ts = now
                     s.frame_id += 1
                     self._preview = preview
-                    if result.face_landmarks and result.facial_transformation_matrixes:
-                        yaw, pitch = angles_from_matrix(result.facial_transformation_matrixes[0])
+                    s.faces_count = len(boxes)
+                    s.calib_box = None
+                    idx = None
+                    if self._owner.has_anchor:
+                        owner = self._owner.select(boxes, now)
+                        idx = next((i for i, b in enumerate(boxes) if b is owner), None)
+                        s.others_count = self._owner.others_count
+                    else:
+                        # calibration: only a single face in the frame counts
+                        s.others_count = 0
+                        if len(boxes) == 1:
+                            idx = 0
+                            s.calib_box = (boxes[0].cx, boxes[0].cy, boxes[0].size)
+                    if idx is not None and idx < len(result.facial_transformation_matrixes):
+                        yaw, pitch = angles_from_matrix(result.facial_transformation_matrixes[idx])
                         yaw_s = yaw if yaw_s is None else a * yaw + (1 - a) * yaw_s
                         pitch_s = pitch if pitch_s is None else a * pitch + (1 - a) * pitch_s
-                        lms = result.face_landmarks[0]
+                        lms = result.face_landmarks[idx]  # other faces are never analysed
                         s.face_present = True
                         s.yaw, s.pitch = yaw_s, pitch_s
                         s.ear = (eye_aspect_ratio(lms, LEFT_EYE) + eye_aspect_ratio(lms, RIGHT_EYE)) / 2
@@ -153,7 +197,8 @@ class FaceTracker:
                         s.face_present = False
                         yaw_s = pitch_s = None
                     if self.debug:
-                        print(f"face={s.face_present} yaw={s.yaw:6.1f} pitch={s.pitch:6.1f} ear={s.ear:.2f}")
+                        print(f"owner={s.face_present} others={s.others_count} "
+                              f"yaw={s.yaw:6.1f} pitch={s.pitch:6.1f} ear={s.ear:.2f}")
 
                 time.sleep(max(0.0, period - (time.monotonic() - started)))
         finally:

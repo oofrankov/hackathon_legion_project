@@ -1,4 +1,5 @@
-"""Collects head angles while the user looks at screen points; kept in memory only."""
+"""Collects head angles and the owner's face position while the user looks at
+screen points. Everything is kept in memory only."""
 from dataclasses import dataclass
 
 import config
@@ -34,6 +35,8 @@ class Calibrator:
         self.yaws, self.pitches = [], []
         self.frames_total = 0
         self.frames_with_face = 0
+        self.frames_multi_face = 0     # frames with 2+ people: calibration must be repeated
+        self._boxes = []               # (cx, cy, size) of the single face -> owner anchor
         self._last_frame_id = -1
 
     def add(self, signals, collect=True):
@@ -42,6 +45,10 @@ class Calibrator:
             return
         self._last_frame_id = signals.frame_id
         self.frames_total += 1
+        if signals.faces_count > 1:
+            self.frames_multi_face += 1
+        if signals.calib_box is not None:
+            self._boxes.append(signals.calib_box)
         if signals.face_present:
             self.frames_with_face += 1
             if collect:
@@ -52,8 +59,23 @@ class Calibrator:
     def face_ratio(self):
         return self.frames_with_face / self.frames_total if self.frames_total else 0.0
 
+    @property
+    def multi_face(self):
+        """More than one person was in the frame for a noticeable part of the time."""
+        return (self.frames_total > 0 and
+                self.frames_multi_face / self.frames_total > config.CALIBRATION_MAX_MULTI_FACE_RATIO)
+
     def ok(self):
-        return self.face_ratio >= config.CALIBRATION_MIN_FACE_RATIO and len(self.yaws) >= 5
+        return (not self.multi_face and self.face_ratio >= config.CALIBRATION_MIN_FACE_RATIO
+                and len(self.yaws) >= 5 and self._boxes)
+
+    def anchor(self):
+        """Owner anchor: average face center and size during calibration."""
+        n = len(self._boxes)
+        cx = sum(b[0] for b in self._boxes) / n
+        cy = sum(b[1] for b in self._boxes) / n
+        size = sum(b[2] for b in self._boxes) / n
+        return (cx, cy), size
 
     def result(self) -> CalibrationResult:
         return make_calibration(self.yaws, self.pitches)

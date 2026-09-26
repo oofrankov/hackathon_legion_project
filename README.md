@@ -62,9 +62,26 @@ The model `models/face_landmarker.task` is included. If it is missing, download 
 
 A new state is shown only after it has lasted 1.5 s, so the widget does not flicker (`STATE_HOLD_SEC`). All thresholds, keywords and UI texts are in `config.py`.
 
+## One owner per session (no biometrics)
+
+FocusCheck follows only the person who calibrated, the **owner**. It recognises the owner by **where their face is in the frame and how big it is**, never by who they are.
+
+- The camera finds up to 3 faces (`MAX_FACES`). Calibration requires exactly one person in the frame; if there are two, it asks you to repeat. The owner's average face position and size become the **anchor**. The anchor lives in memory only and is deleted when the session ends.
+- On every frame, a face counts as the owner only if it is close to the owner's last position (`OWNER_MAX_SHIFT` per second) and has a similar size (`OWNER_SIZE_RATIO_MIN`–`OWNER_SIZE_RATIO_MAX`). The last position then follows the owner smoothly (`OWNER_SMOOTHING`).
+- **Other faces are ignored completely.** Their gaze is not analysed, and nothing about them is stored or logged. The widget shows only "+N other person in frame · ignored, not identified".
+- If the owner is gone for longer than `NO_FACE_SEC`, the state becomes **Away**, even if other people are still in the frame. The tracker never jumps to another face.
+- A returning face is accepted only inside the owner's zone (`OWNER_RETURN_RADIUS` around the anchor) and only after it stays there for `OWNER_RETURN_HOLD_SEC`, so people walking past are not taken for the owner. After an absence longer than `OWNER_RECALIBRATE_AFTER_SEC` (5 min), the app offers a quick recalibration.
+- The logic lives in `tracker/owner_lock.py` and has no camera dependency. It is tested on synthetic boxes in `tests/test_owner_lock.py`.
+
+## Limitations
+
+- **Owner lock without biometrics.** If the owner leaves and someone else sits exactly in their place at the same distance from the camera, that person can be taken for the owner. This is a deliberate trade-off for not using face recognition.
+- Window detection needs an Xorg/X11 session on Linux (see above).
+
 ## Privacy (hard rules)
 
 - Camera frames are processed in memory and **never saved or sent** anywhere.
+- **No biometrics.** There are no face embeddings and no face recognition. Only face position and size are used, in memory only, to follow the session owner. Other people in the frame are never analysed.
 - **Keys are never recorded.** Only the time of the last input event is kept.
 - **Window titles, window classes and process names are never stored or logged.** They are turned into `work` / `distracting` in memory and discarded. No screenshots, no reading of window contents.
 - OpenAI receives **only numeric metrics**. No video, titles or task text.
