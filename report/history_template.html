@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FocusCheck History</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #111827; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #22c55e; --warn: #f97316; --link: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1115; --card: #181b22; --text: #f3f4f6; --muted: #9ca3af; --line: #2a2f3a; --link: #60a5fa; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 14px; font-weight: 600; }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .muted { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-top: 16px; }
+  .hero { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: center; }
+  .score { font-size: 80px; font-weight: 800; line-height: 1; letter-spacing: -0.04em; }
+  .score small { font-size: 32px; }
+  .headline { font-size: 24px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
+  .headline .warn { color: var(--warn); }
+  .headline .good { color: var(--accent); }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .tile b { display: block; font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .tile span { font-size: 13px; color: var(--muted); }
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .chart-box { position: relative; height: 260px; }
+  .breakdown ul { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+  .breakdown li { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .stack { display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: var(--line); }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  td.num, th.num { text-align: right; }
+  .pill { display: inline-block; min-width: 46px; text-align: center; border-radius: 999px; padding: 1px 8px; font-weight: 600; font-size: 13px; }
+  .mini { display: inline-flex; width: 110px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); vertical-align: middle; }
+  .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+  footer { margin-top: 24px; text-align: center; font-size: 13px; color: var(--muted); }
+  @media (max-width: 760px) {
+    .hero, .grid2 { grid-template-columns: 1fr; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .score { font-size: 60px; }
+    .headline { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>FocusCheck · your history</h1>
+    <span class="muted" id="meta"></span>
+  </header>
+  <div id="content"></div>
+  <footer id="privacy"></footer>
+</main>
+
+<script>
+const DATA = /*__HISTORY_DATA__*/null;
+const O = DATA.overall, ROWS = DATA.sessions, C = DATA.colors, L = DATA.labels;
+const STATES = Object.keys(L);
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, text) => { const e = document.createElement(tag); Object.assign(e, attrs); if (text != null) e.textContent = text; return e; };
+const fmtMin = m => {
+  if (m >= 60) { const h = Math.floor(m / 60), r = Math.round(m % 60); return `${h} h ${r} min`; }
+  return (Math.round(m * 10) / 10).toString().replace(/\.0$/, "") + " min";
+};
+const fmtDate = iso => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const pctColor = p => p >= 75 ? C.FOCUSED : p >= 50 ? C.DISTRACTED_SCREEN : C.PHONE;
+
+$("meta").textContent = `${O.sessions} session${O.sessions === 1 ? "" : "s"} · updated ${fmtDate(DATA.generated_at)}`;
+$("privacy").textContent = "🔒 " + DATA.privacy;
+const root = $("content");
+
+if (!ROWS.length) {
+  root.append(el("section", { className: "card empty" }, "No sessions yet. Finish your first session and it will show up here."));
+} else {
+  // --- overall hero
+  const hero = el("section", { className: "card hero" });
+  const left = el("div"); left.append(el("h2", {}, "Overall focus"));
+  const score = el("div", { className: "score" }); score.innerHTML = `${O.focus_pct}<small>%</small>`; left.append(score);
+  const right = el("div"); right.append(el("h2", {}, "The big picture"));
+  const head = el("div", { className: "headline" });
+  head.append(el("span", {}, `${fmtMin(O.focused_min)} of real focus in ${fmtMin(O.total_min)} tracked.`), el("br"));
+  if (O.avg_gap_pct != null) {
+    const over = O.avg_gap_pct > 0;
+    head.append(el("span", { className: over ? "warn" : "good" },
+      over ? `On average you expect ${O.avg_gap_pct} points more focus than you get.`
+           : `On average you match or beat your own estimate.`));
+  }
+  right.append(head);
+  hero.append(left, right);
+  root.append(hero);
+
+  // --- tiles
+  const tiles = el("section", { className: "card" });
+  tiles.append(el("h2", {}, "Totals"));
+  const tgrid = el("div", { className: "tiles" });
+  [
+    [O.sessions, `sessions over ${O.days} day${O.days === 1 ? "" : "s"}`],
+    [fmtMin(O.total_min), "tracked (without pauses)"],
+    [fmtMin(O.longest_streak_min), "longest focus streak"],
+    [O.best ? O.best.focus_pct + "%" : "–", O.best ? `best: ${O.best.name}` : "best session"],
+    [O.distractions, "distractions (≥10 s)"],
+    [O.phone, "times on the phone"],
+    [fmtMin(O.state_min.DISTRACTED_SCREEN), "on distracting sites/apps"],
+    [fmtMin(O.state_min.PHONE), "looking at the phone"],
+  ].forEach(([v, label]) => {
+    const t = el("div", { className: "tile" });
+    t.append(el("b", {}, String(v)), el("span", {}, label));
+    tgrid.append(t);
+  });
+  tiles.append(tgrid);
+  root.append(tiles);
+
+  // --- trend chart + breakdown
+  const grid = el("div", { className: "grid2" });
+  const trend = el("section", { className: "card" });
+  trend.append(el("h2", {}, "Focus per session: expected vs. real"));
+  const box = el("div", { className: "chart-box" });
+  const canvas = el("canvas"); box.append(canvas); trend.append(box);
+  const breakdown = el("section", { className: "card breakdown" });
+  breakdown.append(el("h2", {}, "Where all the time went"));
+  const stack = el("div", { className: "stack" });
+  const tot = STATES.reduce((a, k) => a + O.state_min[k], 0) || 1;
+  const ul = el("ul");
+  STATES.forEach(k => {
+    const seg = el("div"); seg.style.width = (O.state_min[k] / tot * 100) + "%"; seg.style.background = C[k];
+    seg.title = `${L[k]}: ${fmtMin(O.state_min[k])}`;
+    stack.append(seg);
+    const li = el("li"); const name = el("span"); const d = el("span", { className: "dot" }); d.style.background = C[k];
+    name.append(d, L[k]); li.append(name, el("b", {}, fmtMin(O.state_min[k]))); ul.append(li);
+  });
+  breakdown.append(stack, ul);
+  grid.append(trend, breakdown);
+  root.append(grid);
+
+  if (window.Chart) {
+    const css = getComputedStyle(document.documentElement);
+    Chart.defaults.color = css.getPropertyValue("--muted").trim();
+    Chart.defaults.borderColor = css.getPropertyValue("--line").trim();
+    new Chart(canvas, {
+      data: {
+        labels: ROWS.map(r => fmtDate(r.started_at)),
+        datasets: [
+          { type: "bar", label: "Real focus %", data: ROWS.map(r => r.focus_pct),
+            backgroundColor: ROWS.map(r => pctColor(r.focus_pct)), borderRadius: 4, maxBarThickness: 36 },
+          { type: "line", label: "Expected %", data: ROWS.map(r => r.expected_pct),
+            borderColor: "#9ca3af", backgroundColor: "#9ca3af", borderDash: [5, 4], pointRadius: 3, spanGaps: true },
+        ],
+      },
+      options: {
+        maintainAspectRatio: false,
+        scales: { y: { min: 0, max: 100, ticks: { callback: v => v + "%" } }, x: { ticks: { maxRotation: 0, autoSkip: true } } },
+        plugins: { legend: { position: "bottom" },
+                   tooltip: { callbacks: { title: items => ROWS[items[0].dataIndex].name } } },
+      },
+    });
+  } else {
+    box.replaceWith(el("p", { className: "muted" }, "Chart needs internet (Chart.js). The table below has all numbers."));
+  }
+
+  // --- sessions table (newest first)
+  const tcard = el("section", { className: "card" });
+  tcard.append(el("h2", {}, "All sessions"));
+  const wrap = el("div", { className: "table-wrap" });
+  const table = el("table");
+  table.innerHTML = `<thead><tr><th>When</th><th>Session</th><th class="num">Length</th><th class="num">Focus</th>
+    <th class="num">Expected</th><th>Time split</th><th class="num">Distr.</th><th class="num">Phone</th><th></th></tr></thead>`;
+  const tb = el("tbody");
+  [...ROWS].reverse().forEach(r => {
+    const tr = el("tr");
+    const pill = el("span", { className: "pill" }, r.focus_pct + "%");
+    pill.style.background = pctColor(r.focus_pct) + "33"; pill.style.color = "inherit";
+    const mini = el("span", { className: "mini" });
+    const rt = STATES.reduce((a, k) => a + r.state_min[k], 0) || 1;
+    STATES.forEach(k => { const s = el("span"); s.style.width = (r.state_min[k] / rt * 100) + "%"; s.style.background = C[k]; mini.append(s); });
+    const cells = [
+      el("td", {}, fmtDate(r.started_at)), el("td", {}, r.name),
+      el("td", { className: "num" }, fmtMin(r.total_min)),
+    ];
+    const focusTd = el("td", { className: "num" }); focusTd.append(pill); cells.push(focusTd);
+    cells.push(el("td", { className: "num muted" }, r.expected_pct != null ? r.expected_pct + "%" : "–"));
+    const splitTd = el("td"); splitTd.append(mini); cells.push(splitTd);
+    cells.push(el("td", { className: "num" }, String(r.distraction_count)), el("td", { className: "num" }, String(r.phone_count)));
+    const linkTd = el("td");
+    if (r.report) linkTd.append(el("a", { href: r.report }, "Report →"));
+    cells.push(linkTd);
+    tr.append(...cells); tb.append(tr);
+  });
+  table.append(tb); wrap.append(table); tcard.append(wrap);
+  root.append(tcard);
+}
+</script>
+</body>
+</html>

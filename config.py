@@ -133,6 +133,7 @@ TEXTS = {
     "more_settings": "More settings",
     "nudge_label": "Remind me after this many seconds of distraction",
     "apps_link": "Distracting apps & sites ({n} on)  ›",
+    "history_link": "Past sessions & stats  ›",
     "apps_title": "Distracting apps & sites",
     "apps_subtitle": "FocusCheck only checks which window is on top, never what is inside it. "
                      "Untick anything you need for work.",

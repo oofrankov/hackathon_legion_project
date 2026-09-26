@@ -19,6 +19,7 @@ from ai.advice import get_advice  # noqa: E402
 from monitors.input_activity import InputActivity  # noqa: E402
 from monitors.app_settings import enabled_count, load_settings, save_settings  # noqa: E402
 from monitors.window import Rules, WindowMonitor, is_wayland  # noqa: E402
+from report.history import build_history  # noqa: E402
 from report.report import build_report  # noqa: E402
 from session.recorder import SessionRecorder, next_session_number  # noqa: E402
 from session.summary import compute_summary  # noqa: E402
@@ -61,9 +62,13 @@ class FocusCheckApp:
             print("[window] " + config.TEXTS["wayland_warning"])
         self.user_settings, first_run = load_settings()
         self.start_window = StartWindow(self.root, next_session_number(), enabled_count(self.user_settings),
-                                        self.on_start, self.quit, self.edit_apps, wayland=self.wayland)
+                                        self.on_start, self.quit, self.edit_apps, self.show_history,
+                                        wayland=self.wayland)
         if first_run:  # let the user pick exceptions before the first session
             self.edit_apps()
+
+    def show_history(self):
+        print("History:", build_history())
 
     def edit_apps(self):
         self.start_window.withdraw()
@@ -201,6 +206,7 @@ class FocusCheckApp:
             data = rec.to_dict(summary, advice)
             result["json"] = rec.save(data)
             result["html"] = build_report(data, open_browser=False)
+            build_history(open_browser=False)  # keep the "All sessions" page up to date
 
         th = threading.Thread(target=work, daemon=True)
         th.start()
@@ -253,7 +259,11 @@ def main():
     parser = argparse.ArgumentParser(description="FocusCheck")
     parser.add_argument("--debug", action="store_true", help="print head angles to console")
     parser.add_argument("--demo-report", action="store_true", help="open a report from fake data")
+    parser.add_argument("--history", action="store_true", help="open stats of all past sessions")
     args = parser.parse_args()
+    if args.history:
+        print("History:", build_history())
+        return
     if args.demo_report:
         demo_report()
         return

@@ -11,7 +11,8 @@ WIDTH = 420
 
 
 class StartWindow(tk.Toplevel):
-    def __init__(self, master, session_number, apps_count, on_start, on_close, on_edit_apps, wayland=False):
+    def __init__(self, master, session_number, apps_count, on_start, on_close, on_edit_apps,
+                 on_history, wayland=False):
         super().__init__(master, bg=UI["bg"])
         self.on_start, self.on_close, self.on_edit_apps = on_start, on_close, on_edit_apps
         self.default_name = f"Session {session_number} · {datetime.now():%H:%M}"
@@ -61,6 +62,9 @@ class StartWindow(tk.Toplevel):
         self.apps_link.pack(anchor="w", pady=(8, 0))
         self.apps_link.bind("<Button-1>", lambda _e: self.on_edit_apps())
         self.set_apps_count(apps_count)
+        history = tk.Label(f, text=T["history_link"], bg=UI["bg"], fg="#60a5fa", font=(F, 10), cursor="hand2")
+        history.pack(anchor="w", pady=(4, 0))
+        history.bind("<Button-1>", lambda _e: on_history())
 
         self.error = tk.Label(f, bg=UI["bg"], fg=UI["danger"], font=(F, 9), wraplength=WIDTH - 56, justify="left")
         self.error.pack(anchor="w", pady=(8, 0))

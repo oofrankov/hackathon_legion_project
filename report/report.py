@@ -9,6 +9,10 @@ import config
 TEMPLATE = Path(__file__).with_name("template.html")
 
 
+def report_filename(started_at):
+    return f"report_{(started_at or 'session').replace(':', '').replace('-', '')}.html"
+
+
 def build_report(session_data, out_dir=config.SESSIONS_DIR, open_browser=True):
     payload = {
         "session": session_data,
@@ -20,8 +24,7 @@ def build_report(session_data, out_dir=config.SESSIONS_DIR, open_browser=True):
     html = TEMPLATE.read_text(encoding="utf-8").replace("/*__SESSION_DATA__*/null", data)
 
     os.makedirs(out_dir, exist_ok=True)
-    started = session_data.get("started_at", "session").replace(":", "").replace("-", "")
-    path = Path(out_dir, f"report_{started}.html").resolve()
+    path = Path(out_dir, report_filename(session_data.get("started_at"))).resolve()
     path.write_text(html, encoding="utf-8")
     if open_browser:
         webbrowser.open(path.as_uri())

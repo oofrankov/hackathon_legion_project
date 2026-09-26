@@ -32,6 +32,7 @@ Other commands:
 | Command | What it does |
 |---|---|
 | `python app.py --debug` | prints yaw/pitch/EAR to the console (numbers only) for tuning thresholds |
+| `python app.py --history` | opens stats of all past sessions |
 | `python app.py --demo-report` | opens a report built from a fake 30-minute session, no camera needed |
 | `python -m pytest -q` | runs the classifier and metrics tests |
 
@@ -48,6 +49,7 @@ The model `models/face_landmarker.task` is included. If it is missing, download 
    - **Camera mode** (camera button): adds a small live camera view with the same info. The preview is shown only in this window and is kept in memory only.
 4. **Nudge**: after N seconds of continuous distraction the widget flashes red and beeps. If there are PNG/GIF files in `assets/memes/`, one of them pops up.
 5. **Report**: after Stop, a report opens in your browser. The session is saved to `sessions/`.
+6. **History** (`sessions/history.html`): overall stats and all past sessions. It shows total and focused time, overall focus %, the average gap between expected and real focus, the best session, distractions, a per-session chart (real vs. expected focus), where all the time went, and a table with a link to each report. Open it from the start screen ("Past sessions & stats"), from any report ("All sessions →"), or with `python app.py --history`. It is rebuilt after every session.
 
 | Signals | State |
 |---|---|
