@@ -62,21 +62,14 @@ class StartWindow(tk.Toplevel):
         self.apps_link.pack(anchor="w", pady=(8, 0))
         self.apps_link.bind("<Button-1>", lambda _e: self.on_edit_apps())
         self.set_apps_count(apps_count)
-        history = tk.Label(f, text=T["history_link"], bg=UI["bg"], fg="#60a5fa", font=(F, 10), cursor="hand2")
-        history.pack(anchor="w", pady=(4, 0))
-        history.bind("<Button-1>", lambda _e: on_history())
 
         self.error = tk.Label(f, bg=UI["bg"], fg=UI["danger"], font=(F, 9), wraplength=WIDTH - 56, justify="left")
         self.error.pack(anchor="w", pady=(8, 0))
 
         # big primary button (canvas for rounded corners)
-        self.btn = tk.Canvas(f, width=WIDTH - 56, height=48, bg=UI["bg"], highlightthickness=0, cursor="hand2")
-        self.btn_bg = rounded_rect(self.btn, 1, 1, WIDTH - 57, 47, 12, fill=UI["accent"], outline="")
-        self.btn.create_text((WIDTH - 56) / 2, 24, text=T["start_button"], fill="white", font=(F, 13, "bold"))
-        self.btn.pack(pady=(6, 14))
-        self.btn.bind("<Enter>", lambda _e: self.btn.itemconfig(self.btn_bg, fill=UI["accent_hover"]))
-        self.btn.bind("<Leave>", lambda _e: self.btn.itemconfig(self.btn_bg, fill=UI["accent"]))
-        self.btn.bind("<ButtonRelease-1>", lambda _e: self._submit())
+        self._button(f, T["start_button"], self._submit, primary=True).pack(pady=(6, 8))
+        # stats of past sessions are available without starting a new one
+        self._button(f, T["history_button"], on_history, primary=False).pack(pady=(0, 14))
 
         tk.Label(f, text="🔒  " + T["privacy_note"], bg=UI["bg"], fg=UI["muted"], font=(F, 9),
                  wraplength=WIDTH - 56, justify="left").pack(anchor="w")
@@ -88,6 +81,20 @@ class StartWindow(tk.Toplevel):
         self.focus_force()
 
     # --- helpers ---------------------------------------------------------
+    def _button(self, parent, text, command, primary):
+        """Rounded canvas button: filled blue (primary) or outlined (secondary)."""
+        h = 48 if primary else 42
+        fill, hover = (UI["accent"], UI["accent_hover"]) if primary else (UI["bg"], UI["field"])
+        c = tk.Canvas(parent, width=WIDTH - 56, height=h, bg=UI["bg"], highlightthickness=0, cursor="hand2")
+        bg = rounded_rect(c, 1, 1, WIDTH - 57, h - 1, 12, fill=fill,
+                          outline="" if primary else UI["border"], width=1)
+        c.create_text((WIDTH - 56) / 2, h / 2, text=text, fill="white" if primary else UI["text"],
+                      font=(F, 13 if primary else 11, "bold"))
+        c.bind("<Enter>", lambda _e: c.itemconfig(bg, fill=hover))
+        c.bind("<Leave>", lambda _e: c.itemconfig(bg, fill=fill))
+        c.bind("<ButtonRelease-1>", lambda _e: command())
+        return c
+
     def _label(self, parent, text):
         tk.Label(parent, text=text, bg=UI["bg"], fg=UI["text"], font=(F, 10, "bold"),
                  wraplength=WIDTH - 56, justify="left").pack(anchor="w", pady=(10, 4))
