@@ -10,7 +10,7 @@ FocusCheck is a desktop app for honest focus tracking during a work session. It 
 
 That lets it tell apart cases other trackers mix up. *Looking at the screen* is not the same as *working* (YouTube shows 🟡), and *head down while typing* is not the same as *on the phone* (it stays 🟢).
 
-Before the session you say how many minutes you expect to stay focused. After it you get a report: your focus score, **what you expected vs. what happened**, a timeline, a breakdown, key facts and coaching tips.
+Before the session you say how focused you expect to be (in %). After it you get a report: your focus score, **what you expected vs. what happened**, a timeline, a breakdown, key facts and coaching tips.
 
 HACK_002 Vienna · Track A1 "Applied AI for Consumers".
 
@@ -40,22 +40,24 @@ The model `models/face_landmarker.task` is included. If it is missing, download 
 
 ## How it works
 
-1. **Start**: enter your task (optional), session length, your honest focus estimate and the reminder threshold.
+1. **Start**: open the app and press **Start session**. The session name is optional; if it is empty the app uses "Session N · HH:MM". You can set your focus estimate (%) with a slider. The reminder threshold and extra distracting sites are under "More settings".
 2. **Calibration** (10 s): look at a dot in the center and in the 4 corners. This records your "looking at the screen" head-pose range.
-3. **Widget**: a small always-on-top window shows the current state, the timer and your focus %, with Pause and Stop buttons.
+3. **Widget** (Zoom-style, always on top, draggable): state, timer counting up (no preset length) and focus %, with Pause, camera view and Stop buttons.
+   - **Compact mode** (default): a slim bar.
+   - **Camera mode** (camera button): adds a small live camera view with the same info. The preview is shown only in this window and is kept in memory only.
 4. **Nudge**: after N seconds of continuous distraction the widget flashes red and beeps. If there are PNG/GIF files in `assets/memes/`, one of them pops up.
-5. **Report**: after Stop, or when the time is up, a report opens in your browser. The session is saved to `sessions/`.
+5. **Report**: after Stop, a report opens in your browser. The session is saved to `sessions/`.
 
 | Signals | State |
 |---|---|
-| no face for > 3 s | ⚪ Away |
+| no face for > 2 s | ⚪ Away |
 | head down, no typing | 🟠 Phone |
 | head down, typing | 🟢 Focused |
 | head turned away | 🟠 Looking away |
 | screen + distracting window | 🟡 Distracting window |
 | screen + work window | 🟢 Focused |
 
-A new state is shown only after it has lasted 2.5 s, so the widget does not flicker. All thresholds, keywords and UI texts are in `config.py`.
+A new state is shown only after it has lasted 1.5 s, so the widget does not flicker (`STATE_HOLD_SEC`). All thresholds, keywords and UI texts are in `config.py`.
 
 ## Privacy (hard rules)
 

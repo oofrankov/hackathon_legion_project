@@ -1,83 +1,128 @@
-"""Start window: task, duration, self-estimate, nudge threshold."""
+"""Start screen: one big button. Name and estimate are optional extras."""
 import tkinter as tk
-from tkinter import ttk
+from datetime import datetime
 
 import config
+from ui.widget import rounded_rect
 
-T = config.TEXTS
+T, UI = config.TEXTS, config.UI
+F = config.UI_FONT
+WIDTH = 420
 
 
 class StartWindow(tk.Toplevel):
-    def __init__(self, master, on_start, on_close):
-        super().__init__(master)
+    def __init__(self, master, session_number, on_start, on_close):
+        super().__init__(master, bg=UI["bg"])
         self.on_start, self.on_close = on_start, on_close
+        self.default_name = f"Session {session_number} · {datetime.now():%H:%M}"
         self.title(T["app_title"])
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", on_close)
 
-        style = ttk.Style(self)
-        style.configure(".", font=(config.UI_FONT, 10))
-        f = ttk.Frame(self, padding=24)
+        f = tk.Frame(self, bg=UI["bg"], padx=28, pady=24)
         f.pack(fill="both", expand=True)
-        ttk.Label(f, text=T["start_heading"], font=(config.UI_FONT, 16, "bold")).pack(anchor="w", pady=(0, 14))
+        tk.Label(f, text=T["app_title"], bg=UI["bg"], fg=UI["text"], font=(F, 22, "bold")).pack(anchor="w")
+        tk.Label(f, text=T["start_subtitle"], bg=UI["bg"], fg=UI["muted"], font=(F, 11)).pack(anchor="w", pady=(0, 18))
 
-        self.task = tk.StringVar()
-        self.duration = tk.StringVar(value=str(config.DEFAULT_SESSION_MIN))
-        self.estimate = tk.StringVar(value=str(config.DEFAULT_SELF_ESTIMATE_MIN))
+        # optional session name
+        self.name = tk.StringVar()
+        self._label(f, T["name_label"])
+        self._entry(f, self.name).pack(fill="x", ipady=6)
+        self._hint(f, T["name_hint"].format(default=self.default_name))
+
+        # self-estimate (the "expected vs. real" moment of the report)
+        row = tk.Frame(f, bg=UI["bg"])
+        row.pack(fill="x", pady=(14, 0))
+        tk.Label(row, text=T["estimate_label"], bg=UI["bg"], fg=UI["text"], font=(F, 10, "bold")).pack(side="left")
+        self.estimate = tk.IntVar(value=config.DEFAULT_SELF_ESTIMATE_PCT)
+        self.estimate_lbl = tk.Label(row, bg=UI["bg"], fg=UI["text"], font=(F, 14, "bold"))
+        self.estimate_lbl.pack(side="right")
+        tk.Scale(f, from_=0, to=100, orient="horizontal", variable=self.estimate, showvalue=False,
+                 resolution=5, bg=UI["accent"], fg=UI["text"], troughcolor=UI["field"],
+                 activebackground=UI["accent_hover"], highlightthickness=0, bd=0, sliderrelief="flat",
+                 sliderlength=22, width=10, command=lambda _v: self._update_estimate()).pack(fill="x", pady=(6, 0))
+        self._update_estimate()
+
+        # collapsed extra settings
+        self.more_open = False
+        self.more_btn = tk.Label(f, bg=UI["bg"], fg=UI["muted"], font=(F, 10), cursor="hand2")
+        self.more_btn.pack(anchor="w", pady=(14, 0))
+        self.more_btn.bind("<Button-1>", lambda _e: self._toggle_more())
+        self.more = tk.Frame(f, bg=UI["bg"])
         self.nudge = tk.StringVar(value=str(config.DISTRACTION_NUDGE_SEC))
         self.keywords = tk.StringVar()
+        self._label(self.more, T["nudge_label"])
+        self._entry(self.more, self.nudge, width=8).pack(anchor="w", ipady=4)
+        self._label(self.more, T["keywords_label"])
+        self._entry(self.more, self.keywords).pack(fill="x", ipady=4)
+        self._render_more()
 
-        self._field(f, T["task_label"], ttk.Entry(f, textvariable=self.task, width=48))
-        self._field(f, T["duration_label"], ttk.Spinbox(f, from_=1, to=240, textvariable=self.duration, width=8))
-        self.estimate_label = ttk.Label(f, wraplength=420, font=(config.UI_FONT, 10, "bold"))
-        self._field(f, None, ttk.Spinbox(f, from_=0, to=240, textvariable=self.estimate, width=8),
-                    label_widget=self.estimate_label)
-        self._field(f, T["nudge_label"],
-                    ttk.Spinbox(f, from_=config.MIN_NUDGE_SEC, to=3600, increment=10, textvariable=self.nudge, width=8))
-        self._field(f, T["keywords_label"], ttk.Entry(f, textvariable=self.keywords, width=48))
+        self.error = tk.Label(f, bg=UI["bg"], fg=UI["danger"], font=(F, 9), wraplength=WIDTH - 56, justify="left")
+        self.error.pack(anchor="w", pady=(8, 0))
 
-        self.error = ttk.Label(f, foreground="#dc2626")
-        self.error.pack(anchor="w", pady=(4, 0))
-        ttk.Button(f, text=T["start_button"], command=self._submit).pack(anchor="e", pady=(10, 8))
-        ttk.Label(f, text=T["privacy_note"], wraplength=420, foreground="#6b7280").pack(anchor="w")
+        # big primary button (canvas for rounded corners)
+        self.btn = tk.Canvas(f, width=WIDTH - 56, height=48, bg=UI["bg"], highlightthickness=0, cursor="hand2")
+        self.btn_bg = rounded_rect(self.btn, 1, 1, WIDTH - 57, 47, 12, fill=UI["accent"], outline="")
+        self.btn.create_text((WIDTH - 56) / 2, 24, text=T["start_button"], fill="white", font=(F, 13, "bold"))
+        self.btn.pack(pady=(6, 14))
+        self.btn.bind("<Enter>", lambda _e: self.btn.itemconfig(self.btn_bg, fill=UI["accent_hover"]))
+        self.btn.bind("<Leave>", lambda _e: self.btn.itemconfig(self.btn_bg, fill=UI["accent"]))
+        self.btn.bind("<ButtonRelease-1>", lambda _e: self._submit())
 
-        self.duration.trace_add("write", lambda *_: self._update_estimate_label())
-        self._update_estimate_label()
+        tk.Label(f, text="🔒  " + T["privacy_note"], bg=UI["bg"], fg=UI["muted"], font=(F, 9),
+                 wraplength=WIDTH - 56, justify="left").pack(anchor="w")
+
         self.bind("<Return>", lambda _e: self._submit())
         self.update_idletasks()
-        self.geometry(f"+{(self.winfo_screenwidth() - self.winfo_width()) // 2}+"
-                      f"{(self.winfo_screenheight() - self.winfo_height()) // 3}")
+        self.geometry(f"{WIDTH}x{self.winfo_reqheight()}+{(self.winfo_screenwidth() - WIDTH) // 2}+"
+                      f"{(self.winfo_screenheight() - self.winfo_reqheight()) // 3}")
+        self.focus_force()
 
-    def _field(self, parent, label, widget, label_widget=None):
-        (label_widget or ttk.Label(parent, text=label, wraplength=420)).pack(anchor="w", pady=(8, 2))
-        widget.pack(anchor="w")
+    # --- helpers ---------------------------------------------------------
+    def _label(self, parent, text):
+        tk.Label(parent, text=text, bg=UI["bg"], fg=UI["text"], font=(F, 10, "bold"),
+                 wraplength=WIDTH - 56, justify="left").pack(anchor="w", pady=(10, 4))
 
-    def _update_estimate_label(self):
-        n = self.duration.get().strip() or "N"
-        self.estimate_label.config(text=T["estimate_label"].format(n=n))
+    def _hint(self, parent, text):
+        tk.Label(parent, text=text, bg=UI["bg"], fg=UI["muted"], font=(F, 9)).pack(anchor="w", pady=(3, 0))
+
+    def _entry(self, parent, var, width=None):
+        e = tk.Entry(parent, textvariable=var, bg=UI["field"], fg=UI["text"], insertbackground=UI["text"],
+                     relief="flat", highlightthickness=1, highlightbackground=UI["border"],
+                     highlightcolor=UI["accent"], font=(F, 11))
+        if width:
+            e.config(width=width)
+        return e
+
+    def _update_estimate(self):
+        self.estimate_lbl.config(text=f"{self.estimate.get()}%")
+
+    def _toggle_more(self):
+        self.more_open = not self.more_open
+        self._render_more()
+        self.update_idletasks()
+        self.geometry(f"{WIDTH}x{self.winfo_reqheight()}")
+
+    def _render_more(self):
+        self.more_btn.config(text=("▾ " if self.more_open else "▸ ") + T["more_settings"])
+        if self.more_open:
+            self.more.pack(fill="x", after=self.more_btn)
+        else:
+            self.more.pack_forget()
 
     def _submit(self):
         try:
-            duration = int(self.duration.get())
-            estimate = int(self.estimate.get())
             nudge = int(self.nudge.get())
         except ValueError:
-            self.error.config(text=T["err_numbers"])
-            return
-        if duration < 1:
-            self.error.config(text=T["err_numbers"])
-            return
-        if not 0 <= estimate <= duration:
-            self.error.config(text=T["err_estimate"])
-            return
+            nudge = -1
         if nudge < config.MIN_NUDGE_SEC:
             self.error.config(text=T["err_nudge"].format(n=config.MIN_NUDGE_SEC))
+            if not self.more_open:
+                self._toggle_more()
             return
-        extra = [k.strip() for k in self.keywords.get().split(",") if k.strip()]
         self.on_start({
-            "task": self.task.get().strip(),
-            "planned_min": duration,
-            "self_estimate_min": estimate,
+            "name": self.name.get().strip() or self.default_name,
+            "self_estimate_pct": int(self.estimate.get()),
             "nudge_threshold_sec": nudge,
-            "extra_keywords": extra,
+            "extra_keywords": [k.strip() for k in self.keywords.get().split(",") if k.strip()],
         })

@@ -37,10 +37,11 @@ def fallback_advice(s):
     if len(tips) < 2:
         tips.append("Keep the same setup next time: it clearly works for you.")
 
-    pct, gap = s.get("focus_pct", 0), s.get("estimate_gap_min", 0)
+    pct, gap = s.get("focus_pct", 0), s.get("estimate_gap_pct", 0)
     analysis = f"You were focused {pct}% of the session ({s.get('focused_min', 0)} of {total} minutes). "
     if gap > 0:
-        analysis += f"That is {gap} minutes less than you expected - a very normal gap, most people overestimate."
+        analysis += (f"You expected {s.get('self_estimate_pct', 0)}% - a {gap}-point gap is very normal, "
+                     "most people overestimate.")
     else:
         analysis += "You matched or beat your own estimate - great self-awareness!"
     return {"source": "fallback", "analysis": analysis, "tips": tips[:3]}

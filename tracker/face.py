@@ -1,7 +1,8 @@
 """MediaPipe Face Landmarker wrapper running in a background thread.
 
-Privacy: frames live only in local variables of the capture loop. They are
-never written to disk, never queued and never sent anywhere.
+Privacy: frames are never written to disk and never sent anywhere. Only while
+the widget's camera view is on, a small mirrored preview is kept in memory for
+local display.
 """
 import math
 import threading
@@ -57,6 +58,8 @@ class FaceTracker:
         self._stop = threading.Event()
         self.error: Optional[str] = None
         self.camera_on = False
+        self.preview_enabled = False
+        self._preview = None      # PPM bytes of the latest preview frame
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -73,6 +76,10 @@ class FaceTracker:
         if self._thread:
             self._thread.join(timeout=3)
         self._thread = None
+
+    def preview(self):
+        with self._lock:
+            return self._preview if self.camera_on else None
 
     def latest(self) -> FaceSignals:
         with self._lock:
@@ -99,6 +106,7 @@ class FaceTracker:
         cap = cv2.VideoCapture(config.CAMERA_INDEX)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.CAMERA_WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.CAMERA_HEIGHT)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)   # always process the freshest frame
         if not cap.isOpened():
             self.error = config.TEXTS["err_camera"]
             landmarker.close()
@@ -120,13 +128,18 @@ class FaceTracker:
                 image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
                 ts_ms = int((time.monotonic() - t0) * 1000)
                 result = landmarker.detect_for_video(image, ts_ms)
-                del frame, rgb, image  # nothing from the frame outlives this loop
+                preview = None
+                if self.preview_enabled:
+                    small = cv2.resize(cv2.flip(frame, 1), (config.PREVIEW_W, config.PREVIEW_H))
+                    preview = cv2.imencode(".ppm", small)[1].tobytes()
+                del frame, rgb, image  # only the small in-memory preview outlives this loop
 
                 now = time.monotonic()
                 with self._lock:
                     s = self._signals
                     s.ts = now
                     s.frame_id += 1
+                    self._preview = preview
                     if result.face_landmarks and result.facial_transformation_matrixes:
                         yaw, pitch = angles_from_matrix(result.facial_transformation_matrixes[0])
                         yaw_s = yaw if yaw_s is None else a * yaw + (1 - a) * yaw_s
@@ -147,3 +160,5 @@ class FaceTracker:
             cap.release()
             landmarker.close()
             self.camera_on = False
+            with self._lock:
+                self._preview = None

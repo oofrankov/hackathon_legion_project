@@ -18,7 +18,7 @@ from ai.advice import get_advice  # noqa: E402
 from monitors.input_activity import InputActivity  # noqa: E402
 from monitors.window import WindowMonitor  # noqa: E402
 from report.report import build_report  # noqa: E402
-from session.recorder import SessionRecorder  # noqa: E402
+from session.recorder import SessionRecorder, next_session_number  # noqa: E402
 from session.summary import compute_summary  # noqa: E402
 from tracker.classifier import GazeTracker, StateSmoother, combine_state  # noqa: E402
 from tracker.face import FaceTracker  # noqa: E402
@@ -53,7 +53,7 @@ class FocusCheckApp:
         self.tracker = FaceTracker(debug=debug)
         self.input = InputActivity()
         self.settings = None
-        self.start_window = StartWindow(self.root, self.on_start, self.quit)
+        self.start_window = StartWindow(self.root, next_session_number(), self.on_start, self.quit)
 
     # --- flow ------------------------------------------------------------
     def on_start(self, settings):
@@ -73,8 +73,7 @@ class FocusCheckApp:
         self.windows = WindowMonitor(s["extra_keywords"])
         self.window_cat = "work"
         self.last_window_poll = 0.0
-        self.recorder = SessionRecorder(s["planned_min"], s["self_estimate_min"],
-                                        s["nudge_threshold_sec"], s["task"])
+        self.recorder = SessionRecorder(s["self_estimate_pct"], s["nudge_threshold_sec"], s["name"])
         self.input.start()
 
         self.paused = False
@@ -90,7 +89,7 @@ class FocusCheckApp:
         self.memes = sorted(p for p in Path(config.MEMES_DIR).glob("*")
                             if p.suffix.lower() in (".png", ".gif"))
 
-        self.widget = Widget(self.root, self.toggle_pause, self.stop)
+        self.widget = Widget(self.root, self.toggle_pause, self.stop, self.set_camera_view)
         self.tick()
 
     # --- main loop -------------------------------------------------------
@@ -121,13 +120,10 @@ class FocusCheckApp:
                 self.next_record += 1
 
             self.check_nudge()
-            if self.active_sec >= self.settings["planned_min"] * 60:
-                self.stop()
-                return
 
         n = len(self.recorder.events)
         focus_pct = round(self.focused_sec / n * 100) if n else 100
-        self.widget.show(self.state, self.active_sec, self.settings["planned_min"], focus_pct,
+        self.widget.show(self.state, self.active_sec, focus_pct,
                          paused=self.paused, camera_on=self.tracker.camera_on)
         self.root.after(config.UI_TICK_MS, self.tick)
 
@@ -146,6 +142,17 @@ class FocusCheckApp:
             beep(self.root)
             if self.memes:
                 show_meme(self.root, str(random.choice(self.memes)), self.widget)
+
+    def set_camera_view(self, on):
+        self.tracker.preview_enabled = on
+        if on:
+            self.preview_loop()
+
+    def preview_loop(self):
+        if self.stopping or not self.widget.camera_view:
+            return
+        self.widget.set_frame(self.tracker.preview())
+        self.root.after(int(1000 / config.PREVIEW_FPS), self.preview_loop)
 
     # --- controls --------------------------------------------------------
     def toggle_pause(self):
@@ -169,7 +176,7 @@ class FocusCheckApp:
         result = {}
 
         def work():  # OpenAI call may take up to the timeout: keep UI responsive
-            summary = compute_summary(rec.events, rec.meta["self_estimate_min"], len(rec.nudges))
+            summary = compute_summary(rec.events, rec.meta["self_estimate_pct"], len(rec.nudges))
             advice = get_advice(summary)
             data = rec.to_dict(summary, advice)
             result["json"] = rec.save(data)
@@ -202,10 +209,10 @@ def demo_report():
     """Builds a report from a synthetic 30-minute session (no camera needed)."""
     from tests.fake_session import fake_events
     events = fake_events()
-    rec = SessionRecorder(30, 26, 90, "Demo: thesis chapter 2")
+    rec = SessionRecorder(85, 90, "Demo: thesis chapter 2", session_number=1)
     rec.events = events
     rec.nudges = [600, 1320]
-    summary = compute_summary(events, 26, len(rec.nudges))
+    summary = compute_summary(events, 85, len(rec.nudges))
     data = rec.to_dict(summary, get_advice(summary))
     print("Report:", build_report(data))
 

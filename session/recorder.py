@@ -2,19 +2,24 @@
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 import config
 
 
+def next_session_number():
+    return len(list(Path(config.SESSIONS_DIR).glob("session_*.json"))) + 1
+
+
 class SessionRecorder:
-    def __init__(self, planned_min, self_estimate_min, nudge_threshold_sec, task=""):
+    def __init__(self, self_estimate_pct, nudge_threshold_sec, name="", session_number=None):
         self.started = datetime.now()
         self.meta = {
             "started_at": self.started.isoformat(timespec="seconds"),
-            "planned_min": planned_min,
-            "self_estimate_min": self_estimate_min,
+            "session_number": session_number or next_session_number(),
+            "name": name,  # local only, never sent to OpenAI
+            "self_estimate_pct": self_estimate_pct,
             "nudge_threshold_sec": nudge_threshold_sec,
-            "task": task,  # local only, never sent to OpenAI
         }
         self.events = []
         self.nudges = []   # active-second of each nudge

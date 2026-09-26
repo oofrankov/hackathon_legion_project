@@ -17,7 +17,7 @@ def _minutes(sec):
     return round(sec / 60, 1)
 
 
-def compute_summary(events, self_estimate_min, nudges_count=0):
+def compute_summary(events, self_estimate_pct, nudges_count=0):
     states = [e["state"] for e in events]
     total = len(states)
     min_len = config.DISTRACTION_MIN_EVENT_SEC
@@ -57,6 +57,8 @@ def compute_summary(events, self_estimate_min, nudges_count=0):
                 best_start, best_focus = k, cur
 
     focused_min = _minutes(focused)
+    focus_pct = round(focused / total * 100) if total else 0
+    self_estimate_min = round(self_estimate_pct / 100 * total / 60, 1)
     return {
         "total_min": _minutes(total),
         "focused_min": focused_min,
@@ -64,7 +66,7 @@ def compute_summary(events, self_estimate_min, nudges_count=0):
         "phone_min": _minutes(counts[config.PHONE]),
         "looking_away_min": _minutes(counts[config.LOOKING_AWAY]),
         "away_min": _minutes(counts[config.AWAY]),
-        "focus_pct": round(focused / total * 100) if total else 0,
+        "focus_pct": focus_pct,
         "distraction_count": distraction_count,
         "phone_count": phone_count,
         "longest_focus_streak_min": _minutes(streak_len),
@@ -73,7 +75,9 @@ def compute_summary(events, self_estimate_min, nudges_count=0):
         "best_segment_start_min": _minutes(best_start),
         "best_segment_end_min": _minutes(best_start + win),
         "best_segment_focus_pct": round(best_focus / win * 100) if win else 0,
+        "self_estimate_pct": self_estimate_pct,
         "self_estimate_min": self_estimate_min,
+        "estimate_gap_pct": self_estimate_pct - focus_pct,
         "estimate_gap_min": round(self_estimate_min - focused_min, 1),
         "nudges_count": nudges_count,
     }

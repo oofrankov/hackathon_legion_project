@@ -84,7 +84,7 @@ def test_window_categories():
 # --- summary (5.10) ----------------------------------------------------
 def test_summary_on_fake_session():
     events = fake_events()
-    s = compute_summary(events, self_estimate_min=26, nudges_count=2)
+    s = compute_summary(events, self_estimate_pct=90, nudges_count=2)
     assert s["total_min"] == round(len(events) / 60, 1)
     assert s["focused_min"] == round(1270 / 60, 1)
     assert s["phone_count"] == 3
@@ -92,7 +92,9 @@ def test_summary_on_fake_session():
     assert s["longest_focus_streak_min"] == 7.0
     assert s["longest_focus_streak_start_min"] == 0
     assert 0 <= s["focus_pct"] <= 100
-    assert s["estimate_gap_min"] == round(26 - s["focused_min"], 1)
+    assert s["self_estimate_min"] == 27.0
+    assert s["estimate_gap_pct"] == 90 - s["focus_pct"]
+    assert s["estimate_gap_min"] == round(27.0 - s["focused_min"], 1)
 
 
 def test_summary_empty():
@@ -107,6 +109,6 @@ def test_only_numbers_go_to_openai():
 
 
 def test_fallback_advice_has_tips():
-    s = compute_summary(fake_events(), 26, 0)
+    s = compute_summary(fake_events(), 90, 0)
     advice = fallback_advice(s)
     assert 2 <= len(advice["tips"]) <= 3 and advice["analysis"]

@@ -115,26 +115,25 @@ const fmtMin = m => (Math.round(m * 10) / 10).toString().replace(/\.0$/, "") + "
 
 // meta line
 const started = new Date(S.started_at);
-$("meta").textContent = started.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) +
-  (S.task ? " · " + S.task : "");
+$("meta").textContent = (S.name ? S.name + " · " : "") +
+  started.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 
 // hero
 $("score").innerHTML = `${M.focus_pct}<small>%</small>`;
-const good = M.focused_min >= M.self_estimate_min;
+const good = M.focus_pct >= M.self_estimate_pct;
 $("vs").innerHTML = "";
 $("vs").append(
-  el("span", { className: "plan" }, `You planned ${fmtMin(M.self_estimate_min)} of focus.`),
+  el("span", { className: "plan" }, `You expected ${M.self_estimate_pct}% focus (≈ ${fmtMin(M.self_estimate_min)}).`),
   el("br"),
-  el("span", { className: "real" + (good ? " good" : "") }, `Reality: ${fmtMin(M.focused_min)}.`)
+  el("span", { className: "real" + (good ? " good" : "") }, `Reality: ${M.focus_pct}% (${fmtMin(M.focused_min)}).`)
 );
-const maxBar = Math.max(M.self_estimate_min, M.focused_min, 1);
-[["Expected", M.self_estimate_min, "var(--muted)"], ["Actual", M.focused_min, C.FOCUSED]].forEach(([name, v, color]) => {
+[["Expected", M.self_estimate_pct, "var(--muted)"], ["Actual", M.focus_pct, C.FOCUSED]].forEach(([name, v, color]) => {
   const row = el("div", { className: "bar-row" });
   const track = el("div", { className: "bar-track" });
   const fill = el("div", { className: "bar-fill" });
-  fill.style.width = (v / maxBar * 100) + "%"; fill.style.background = color;
+  fill.style.width = v + "%"; fill.style.background = color;
   track.append(fill);
-  row.append(el("span", {}, name), track, el("span", { className: "muted" }, fmtMin(v)));
+  row.append(el("span", {}, name), track, el("span", { className: "muted" }, v + "%"));
   $("bars").append(row);
 });
 
@@ -192,7 +191,7 @@ if (window.Chart) {
   [M.phone_count, "times on the phone"],
   [fmtMin(M.longest_focus_streak_min), `longest focus streak (min ${M.longest_focus_streak_start_min}–${M.longest_focus_streak_end_min})`],
   [M.best_segment_focus_pct + "%", `best stretch: min ${M.best_segment_start_min}–${M.best_segment_end_min}`],
-  [fmtMin(M.total_min), "tracked time (without pauses)"],
+  [fmtMin(M.total_min), "session time (without pauses)"],
   [M.nudges_count, "reminders"],
 ].forEach(([v, label]) => {
   const f = el("div", { className: "fact" });
