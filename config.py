@@ -29,11 +29,41 @@ STATE_HOLD_SEC = 1.5            # lower = faster reaction, more flicker
 INPUT_ACTIVE_WINDOW_SEC = 5
 WINDOW_POLL_SEC = 1.0
 
-DISTRACTING_KEYWORDS = [
-    "youtube", "instagram", "tiktok", "netflix", "reddit", "twitch",
-    "facebook", "twitter", "x.com", "discord", "steam", "9gag",
-    "prime video", "disney+", "whatsapp", "telegram",
+# Distracting apps/sites catalogue. Only the category of the top window is used:
+#  - browser window -> tab title is matched against "keywords"
+#  - other apps     -> WM_CLASS / process name / exe path are matched against "apps"
+# "default" = enabled on first launch; the user can untick or add their own.
+# Messengers are off by default: people need them for work communication.
+BROWSERS = ["google-chrome", "chrome", "chromium", "firefox", "brave", "opera",
+            "microsoft-edge", "msedge", "vivaldi", "librewolf"]
+
+DISTRACTION_CATALOG = [
+    # id, name, group, keywords (tab titles), apps (WM_CLASS / process / exe), default
+    {"id": "tiktok", "name": "TikTok", "group": "Social", "keywords": ["tiktok"], "apps": ["tiktok"], "default": True},
+    {"id": "youtube", "name": "YouTube", "group": "Video", "keywords": ["youtube"], "apps": ["youtube", "freetube"], "default": True},
+    {"id": "instagram", "name": "Instagram", "group": "Social", "keywords": ["instagram"], "apps": ["instagram"], "default": True},
+    {"id": "facebook", "name": "Facebook", "group": "Social", "keywords": ["facebook"], "apps": ["facebook"], "default": True},
+    {"id": "x", "name": "X (Twitter)", "group": "Social", "keywords": ["twitter", "x.com", "/ x"], "apps": ["twitter"], "default": True},
+    {"id": "snapchat", "name": "Snapchat", "group": "Social", "keywords": ["snapchat"], "apps": ["snapchat"], "default": True},
+    {"id": "reddit", "name": "Reddit", "group": "Social", "keywords": ["reddit"], "apps": ["reddit"], "default": True},
+    {"id": "threads", "name": "Threads", "group": "Social", "keywords": ["threads.net", "threads.com", "• threads"], "apps": [], "default": True},
+    {"id": "9gag", "name": "9GAG", "group": "Social", "keywords": ["9gag"], "apps": [], "default": True},
+    {"id": "netflix", "name": "Netflix", "group": "Video", "keywords": ["netflix"], "apps": ["netflix"], "default": False},
+    {"id": "twitch", "name": "Twitch", "group": "Video", "keywords": ["twitch"], "apps": ["twitch"], "default": False},
+    {"id": "prime", "name": "Prime Video", "group": "Video", "keywords": ["prime video"], "apps": [], "default": False},
+    {"id": "disney", "name": "Disney+", "group": "Video", "keywords": ["disney+"], "apps": [], "default": False},
+    {"id": "pinterest", "name": "Pinterest", "group": "Social", "keywords": ["pinterest"], "apps": ["pinterest"], "default": False},
+    {"id": "discord", "name": "Discord", "group": "Games & music", "keywords": ["discord"], "apps": ["discord", "vesktop", "webcord"], "default": True},
+    {"id": "steam", "name": "Steam & games", "group": "Games & music", "keywords": [], "apps": ["steam"], "default": True},
+    {"id": "spotify", "name": "Spotify", "group": "Games & music", "keywords": ["spotify"], "apps": ["spotify"], "default": True},
+    {"id": "whatsapp", "name": "WhatsApp", "group": "Messengers", "keywords": ["whatsapp"], "apps": ["whatsapp", "zapzap"], "default": False},
+    {"id": "telegram", "name": "Telegram", "group": "Messengers", "keywords": ["telegram"], "apps": ["telegram", "telegramdesktop"], "default": False},
+    {"id": "signal", "name": "Signal", "group": "Messengers", "keywords": [], "apps": ["signal"], "default": False},
+    {"id": "messenger", "name": "Messenger", "group": "Messengers", "keywords": ["messenger"], "apps": ["messenger", "caprine"], "default": False},
 ]
+CATALOG_GROUPS = ["Social", "Video", "Messengers", "Games & music"]
+APP_WM_CLASS = "FocusCheck"                 # our own windows are ignored
+USER_SETTINGS_PATH = "user_settings.json"   # local preferences only, no observed data
 
 # --- Session ------------------------------------------------------------
 DEFAULT_SELF_ESTIMATE_PCT = 80
@@ -102,7 +132,15 @@ TEXTS = {
     "estimate_label": "How focused do you think you'll be?",
     "more_settings": "More settings",
     "nudge_label": "Remind me after this many seconds of distraction",
-    "keywords_label": "Extra distracting sites/apps (comma separated)",
+    "apps_link": "Distracting apps & sites ({n} on)  ›",
+    "apps_title": "Distracting apps & sites",
+    "apps_subtitle": "FocusCheck only checks which window is on top, never what is inside it. "
+                     "Untick anything you need for work.",
+    "apps_custom_label": "Add your own (app or site name, e.g. chess.com, minecraft)",
+    "apps_add": "Add",
+    "apps_save": "Save",
+    "wayland_warning": "Wayland session detected: window detection is off (all windows count as work). "
+                       "Log in with an Xorg/X11 session for full FocusCheck.",
     "start_button": "Start session",
     "privacy_note": "Video never leaves this device and is never saved. "
                     "Keys and window titles are not recorded.",

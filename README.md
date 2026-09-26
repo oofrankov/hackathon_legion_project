@@ -16,7 +16,7 @@ HACK_002 Vienna · Track A1 "Applied AI for Consumers".
 
 ## Run
 
-Python 3.10–3.12 (MediaPipe has no wheels for 3.13 yet).
+Python 3.10–3.12 (MediaPipe has no wheels for 3.13 yet). On Linux use an **Xorg/X11** session: under Wayland the app warns you and counts every window as work.
 
 ```bash
 python -m venv .venv
@@ -40,6 +40,7 @@ The model `models/face_landmarker.task` is included. If it is missing, download 
 
 ## How it works
 
+0. **First launch**: choose which apps and sites count as distracting. The defaults come from the team's list: social networks and video are on, messengers are off because people need them for work communication. You can untick anything you need for work and add your own apps or sites (e.g. `chess.com`, `minecraft`). The choice is stored locally in `user_settings.json` and can be changed from the start screen.
 1. **Start**: open the app and press **Start session**. The session name is optional; if it is empty the app uses "Session N · HH:MM". You can set your focus estimate (%) with a slider. The reminder threshold and extra distracting sites are under "More settings".
 2. **Calibration** (10 s): look at a dot in the center and in the 4 corners. This records your "looking at the screen" head-pose range.
 3. **Widget** (Zoom-style, always on top, draggable): state, timer counting up (no preset length) and focus %, with Pause, camera view and Stop buttons.
@@ -63,7 +64,7 @@ A new state is shown only after it has lasted 1.5 s, so the widget does not flic
 
 - Camera frames are processed in memory and **never saved or sent** anywhere.
 - **Keys are never recorded.** Only the time of the last input event is kept.
-- **Window titles are never stored or logged.** Only `work` / `distracting` is kept.
+- **Window titles, window classes and process names are never stored or logged.** They are turned into `work` / `distracting` in memory and discarded. No screenshots, no reading of window contents.
 - OpenAI receives **only numeric metrics**. No video, titles or task text.
 - The camera is on only during a session and is turned off on Pause.
 - Everything is stored locally in `sessions/`. Delete the files to erase your history.
@@ -87,4 +88,10 @@ tests/               unit tests on synthetic data
 
 - If looking down does not turn orange, run `python app.py --debug` and lower your head. Pitch should **increase**. If it decreases, set `PITCH_SIGN = -1` in `config.py`.
 - `DOWN_MARGIN_DEG` and `CALIBRATION_MARGIN_DEG` control how far outside the calibrated range counts as down or sideways.
-- Active window detection works on Windows (`pygetwindow`), on Linux X11 (`xprop`) and on macOS (app name only, via `AppKit`). If the window can't be read, the category is `work`.
+- Active window detection (only the window on top, never its content):
+  - **Linux X11** (`python-xlib` + `psutil`): `_NET_ACTIVE_WINDOW`, then the title (`_NET_WM_NAME` / `WM_NAME`), `WM_CLASS` and `_NET_WM_PID` → process name and exe path.
+  - **Browser** (Chrome, Chromium, Firefox, Brave, Opera, Edge, …): the tab title is matched against the site keywords.
+  - **Any other app**: `WM_CLASS`, process name and exe path are matched against the app list. The exe path also catches Flatpak, Snap and Electron apps.
+  - **Windows**: foreground window title + process via `ctypes` and `psutil`. **macOS**: app name only.
+  - If anything can't be read, the category is `work`. FocusCheck ignores its own windows.
+- The app list is `DISTRACTION_CATALOG` in `config.py`: site `keywords`, app ids in `apps`, and a `default` flag for each entry.

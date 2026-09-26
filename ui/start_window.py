@@ -11,9 +11,9 @@ WIDTH = 420
 
 
 class StartWindow(tk.Toplevel):
-    def __init__(self, master, session_number, on_start, on_close):
+    def __init__(self, master, session_number, apps_count, on_start, on_close, on_edit_apps, wayland=False):
         super().__init__(master, bg=UI["bg"])
-        self.on_start, self.on_close = on_start, on_close
+        self.on_start, self.on_close, self.on_edit_apps = on_start, on_close, on_edit_apps
         self.default_name = f"Session {session_number} · {datetime.now():%H:%M}"
         self.title(T["app_title"])
         self.resizable(False, False)
@@ -23,6 +23,9 @@ class StartWindow(tk.Toplevel):
         f.pack(fill="both", expand=True)
         tk.Label(f, text=T["app_title"], bg=UI["bg"], fg=UI["text"], font=(F, 22, "bold")).pack(anchor="w")
         tk.Label(f, text=T["start_subtitle"], bg=UI["bg"], fg=UI["muted"], font=(F, 11)).pack(anchor="w", pady=(0, 18))
+        if wayland:
+            tk.Label(f, text=T["wayland_warning"], bg="#3b2f12", fg="#fcd34d", font=(F, 9),
+                     wraplength=WIDTH - 72, justify="left", padx=8, pady=6).pack(fill="x", pady=(0, 12))
 
         # optional session name
         self.name = tk.StringVar()
@@ -50,12 +53,14 @@ class StartWindow(tk.Toplevel):
         self.more_btn.bind("<Button-1>", lambda _e: self._toggle_more())
         self.more = tk.Frame(f, bg=UI["bg"])
         self.nudge = tk.StringVar(value=str(config.DISTRACTION_NUDGE_SEC))
-        self.keywords = tk.StringVar()
         self._label(self.more, T["nudge_label"])
         self._entry(self.more, self.nudge, width=8).pack(anchor="w", ipady=4)
-        self._label(self.more, T["keywords_label"])
-        self._entry(self.more, self.keywords).pack(fill="x", ipady=4)
         self._render_more()
+
+        self.apps_link = tk.Label(f, bg=UI["bg"], fg="#60a5fa", font=(F, 10), cursor="hand2")
+        self.apps_link.pack(anchor="w", pady=(8, 0))
+        self.apps_link.bind("<Button-1>", lambda _e: self.on_edit_apps())
+        self.set_apps_count(apps_count)
 
         self.error = tk.Label(f, bg=UI["bg"], fg=UI["danger"], font=(F, 9), wraplength=WIDTH - 56, justify="left")
         self.error.pack(anchor="w", pady=(8, 0))
@@ -94,6 +99,9 @@ class StartWindow(tk.Toplevel):
             e.config(width=width)
         return e
 
+    def set_apps_count(self, n):
+        self.apps_link.config(text=T["apps_link"].format(n=n))
+
     def _update_estimate(self):
         self.estimate_lbl.config(text=f"{self.estimate.get()}%")
 
@@ -124,5 +132,4 @@ class StartWindow(tk.Toplevel):
             "name": self.name.get().strip() or self.default_name,
             "self_estimate_pct": int(self.estimate.get()),
             "nudge_threshold_sec": nudge,
-            "extra_keywords": [k.strip() for k in self.keywords.get().split(",") if k.strip()],
         })

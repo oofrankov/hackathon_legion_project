@@ -1,5 +1,6 @@
 """FocusCheck entry point: python app.py [--debug] [--demo-report]"""
 import argparse
+import faulthandler
 import os
 import random
 import sys
@@ -16,12 +17,14 @@ from dotenv import load_dotenv  # noqa: E402
 import config  # noqa: E402
 from ai.advice import get_advice  # noqa: E402
 from monitors.input_activity import InputActivity  # noqa: E402
-from monitors.window import WindowMonitor  # noqa: E402
+from monitors.app_settings import enabled_count, load_settings, save_settings  # noqa: E402
+from monitors.window import Rules, WindowMonitor, is_wayland  # noqa: E402
 from report.report import build_report  # noqa: E402
 from session.recorder import SessionRecorder, next_session_number  # noqa: E402
 from session.summary import compute_summary  # noqa: E402
 from tracker.classifier import GazeTracker, StateSmoother, combine_state  # noqa: E402
 from tracker.face import FaceTracker  # noqa: E402
+from ui.apps_window import AppsWindow  # noqa: E402
 from ui.calibration_window import CalibrationWindow  # noqa: E402
 from ui.start_window import StartWindow  # noqa: E402
 from ui.widget import Widget, show_meme  # noqa: E402
@@ -46,14 +49,31 @@ class FocusCheckApp:
                 ctypes.windll.shcore.SetProcessDpiAwareness(1)
             except Exception:
                 pass
-        self.root = tk.Tk()
+        self.root = tk.Tk(className=config.APP_WM_CLASS)  # WM_CLASS lets us ignore our own windows
         self.root.withdraw()
         self.root.title(config.TEXTS["app_title"])
         self.debug = debug
         self.tracker = FaceTracker(debug=debug)
         self.input = InputActivity()
         self.settings = None
-        self.start_window = StartWindow(self.root, next_session_number(), self.on_start, self.quit)
+        self.wayland = is_wayland()
+        if self.wayland:
+            print("[window] " + config.TEXTS["wayland_warning"])
+        self.user_settings, first_run = load_settings()
+        self.start_window = StartWindow(self.root, next_session_number(), enabled_count(self.user_settings),
+                                        self.on_start, self.quit, self.edit_apps, wayland=self.wayland)
+        if first_run:  # let the user pick exceptions before the first session
+            self.edit_apps()
+
+    def edit_apps(self):
+        self.start_window.withdraw()
+        AppsWindow(self.root, self.user_settings, self.on_apps_saved)
+
+    def on_apps_saved(self, settings):
+        self.user_settings = settings
+        save_settings(settings)
+        self.start_window.set_apps_count(enabled_count(settings))
+        self.start_window.deiconify()
 
     # --- flow ------------------------------------------------------------
     def on_start(self, settings):
@@ -70,7 +90,7 @@ class FocusCheckApp:
         s = self.settings
         self.gaze = GazeTracker(calib)
         self.smoother = StateSmoother()
-        self.windows = WindowMonitor(s["extra_keywords"])
+        self.windows = WindowMonitor(Rules.from_settings(self.user_settings))
         self.window_cat = "work"
         self.last_window_poll = 0.0
         self.recorder = SessionRecorder(s["self_estimate_pct"], s["nudge_threshold_sec"], s["name"])
@@ -217,7 +237,18 @@ def demo_report():
     print("Report:", build_report(data))
 
 
+def enable_crash_log():
+    """On a native crash, dump thread stacks (file/function names only) to crash.log."""
+    try:
+        log = open("crash.log", "w")
+        faulthandler.enable(file=log, all_threads=True)
+        return log
+    except OSError:
+        return None
+
+
 def main():
+    crash_log = enable_crash_log()  # noqa: F841 - keep the file open for the whole run
     load_dotenv()
     parser = argparse.ArgumentParser(description="FocusCheck")
     parser.add_argument("--debug", action="store_true", help="print head angles to console")

@@ -1,7 +1,8 @@
 opencv-python==4.11.0.86
 mediapipe==0.10.21
 numpy<2
-pygetwindow==0.0.9      # Windows: active window title
+python-xlib            # Linux X11: active window, WM_CLASS, PID
+psutil                 # process name / exe of the active window
 pynput==1.8.2           # only the fact of keyboard/mouse activity, never keys
 openai>=1.40
 python-dotenv

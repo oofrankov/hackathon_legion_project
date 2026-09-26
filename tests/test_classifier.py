@@ -1,7 +1,8 @@
 """Classifier, summary and privacy-related tests on synthetic data (no camera)."""
 import config
 from ai.advice import fallback_advice, numeric_only
-from monitors.window import categorize, compile_keywords
+from monitors.app_settings import default_settings
+from monitors.window import Rules, WindowInfo, WindowMonitor, classify, is_own_window
 from session.summary import compute_summary
 from tests.fake_session import fake_events
 from tracker.calibration import make_calibration
@@ -72,13 +73,80 @@ def test_smoother_ignores_short_flicker():
     assert sm.update(config.PHONE, 4.6) == config.PHONE
 
 
-# --- window category (5.3) --------------------------------------------
-def test_window_categories():
-    pat = compile_keywords(config.DISTRACTING_KEYWORDS)
-    assert categorize("Funny cats - YouTube - Firefox", pat) == "distracting"
-    assert categorize("thesis.docx - Word", pat) == "work"
-    assert categorize("git upstream mainstream", pat) == "work"  # no false "steam"
-    assert categorize(None, pat) == "work"
+# --- window category (5.3, X11 rules) --------------------------------
+DEFAULT_RULES = Rules.from_settings(default_settings())
+
+
+def win(title="", wm_class=(), process="", exe="", pid=4242):
+    return WindowInfo(title=title, wm_class=list(wm_class), process=process, exe=exe, pid=pid)
+
+
+def test_facebook_tab_in_firefox_is_distracting():
+    w = win("Facebook — Mozilla Firefox", ("Navigator", "firefox"), "firefox", "/usr/lib/firefox/firefox")
+    assert classify(w, DEFAULT_RULES) == "distracting"
+
+
+def test_facebook_tab_in_chrome_is_distracting():
+    w = win("(3) Facebook - Google Chrome", ("google-chrome", "Google-chrome"), "chrome")
+    assert classify(w, DEFAULT_RULES) == "distracting"
+
+
+def test_work_tab_in_browser_is_work():
+    w = win("Overleaf - thesis.tex - Google Chrome", ("google-chrome", "Google-chrome"), "chrome")
+    assert classify(w, DEFAULT_RULES) == "work"
+
+
+def test_discord_app_is_distracting():
+    assert classify(win("#general | Discord", ("discord", "discord"), "Discord"), DEFAULT_RULES) == "distracting"
+
+
+def test_flatpak_electron_app_matched_by_exe():
+    w = win("Chat", (), "electron", "/var/lib/flatpak/app/com.discordapp.Discord/current/discord/Discord")
+    assert classify(w, DEFAULT_RULES) == "distracting"
+
+
+def test_vscode_is_work_even_with_youtube_in_title():
+    w = win("youtube_downloader.py - Visual Studio Code", ("code", "Code"), "code", "/usr/share/code/code")
+    assert classify(w, DEFAULT_RULES) == "work"   # not a browser: title is not checked
+
+
+def test_empty_title_and_unknown_window_is_work():
+    assert classify(win(""), DEFAULT_RULES) == "work"
+    assert classify(win("", ("firefox",), "firefox"), DEFAULT_RULES) == "work"
+    assert classify(None, DEFAULT_RULES) == "work"
+
+
+def test_keywords_do_not_match_inside_words():
+    w = win("box.com files - Firefox", ("firefox",), "firefox")
+    assert classify(w, DEFAULT_RULES) == "work"      # "x.com" inside "box.com"
+
+
+def test_messengers_off_by_default_but_can_be_enabled():
+    tg = win("Telegram", ("telegram-desktop", "TelegramDesktop"), "telegram-desktop")
+    assert classify(tg, DEFAULT_RULES) == "work"
+    settings = default_settings()
+    settings["enabled"]["telegram"] = True
+    assert classify(tg, Rules.from_settings(settings)) == "distracting"
+
+
+def test_user_exception_and_custom_entry():
+    settings = default_settings()
+    settings["enabled"]["youtube"] = False          # needed for work
+    settings["custom"] = ["chess.com", "minecraft"]
+    rules = Rules.from_settings(settings)
+    assert classify(win("Lecture - YouTube - Firefox", ("firefox",), "firefox"), rules) == "work"
+    assert classify(win("Play chess.com - Firefox", ("firefox",), "firefox"), rules) == "distracting"
+    assert classify(win("Minecraft 1.21", ("Minecraft",), "java"), rules) == "distracting"
+
+
+def test_own_window_is_ignored():
+    assert is_own_window(win("FocusCheck", ("tk", config.APP_WM_CLASS), "python"))
+    assert not is_own_window(win("Firefox", ("firefox",), "firefox"))
+
+
+def test_wayland_means_everything_is_work(monkeypatch):
+    monkeypatch.setenv("XDG_SESSION_TYPE", "wayland")
+    assert WindowMonitor(DEFAULT_RULES).category() == "work"
 
 
 # --- summary (5.10) ----------------------------------------------------
