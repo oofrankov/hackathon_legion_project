@@ -4,11 +4,11 @@
 
 FocusCheck is a desktop app for honest focus tracking during a work session. It combines three signals:
 
-- **head pose** from the webcam (MediaPipe Face Landmarker): screen, phone, looking away, or away from the desk
+- **head pose** from the webcam (MediaPipe Face Landmarker): screen, looking away (sideways or down), or away from the desk
 - **active window category**: work or distracting (YouTube, Instagram, …)
 - **keyboard and mouse activity**: whether you were typing at all
 
-That lets it tell apart cases other trackers mix up. *Looking at the screen* is not the same as *working* (YouTube shows 🟡), and *head down while typing* is not the same as *on the phone* (it stays 🟢).
+That lets it tell apart cases other trackers mix up. *Looking at the screen* is not the same as *working* (YouTube shows 🟡), and *head down while typing* is not the same as *looking away* (it stays 🟢).
 
 Before the session you say how focused you expect to be (in %). After it you get a report: your focus score, **what you expected vs. what happened**, a timeline, a breakdown, key facts and coaching tips.
 
@@ -82,7 +82,7 @@ Every build runs the unit tests and `--selftest`. The workflow uses no secrets.
 ## How it works
 
 0. **First launch**: choose which apps and sites count as distracting (in the same window; later via "Distracting apps & sites" on the start screen). The defaults come from the team's list: social networks and video are on, messengers are off because people need them for work communication. You can untick anything you need for work and add your own apps or sites (e.g. `chess.com`, `minecraft`). The choice is stored locally in `user_settings.json` in your data folder and can be changed from the start screen.
-1. **Start**: open the app and press **Start session**. The session name is optional; if it is empty the app uses "Session N · HH:MM". You can set your focus estimate (%) with a slider. The reminder threshold and extra distracting sites are under "More settings".
+1. **Start**: open the app and press **Start session**. The session name is optional; if it is empty the app uses "Session N · HH:MM". You can set your focus estimate (%) with a slider. "Distracting apps & sites" opens the list of distracting apps. The reminder comes after 90 s of continuous distraction (`DISTRACTION_NUDGE_SEC` in `config.py`).
 2. **Calibration** (10 s): look at a dot in the center and in the 4 corners. This records your "looking at the screen" head-pose range.
 3. **Widget** (Zoom-style, always on top, draggable): state, timer counting up (no preset length) and focus %, with Pause, camera view and Stop buttons.
    - **Compact mode** (default): a slim bar.
@@ -94,7 +94,7 @@ Every build runs the unit tests and `--selftest`. The workflow uses no secrets.
 | Signals | State |
 |---|---|
 | no face for > 2 s | ⚪ Away |
-| head down, no typing | 🟠 Phone |
+| head down, no typing | 🟠 Looking away |
 | head down, typing | 🟢 Focused |
 | head turned away | 🟠 Looking away |
 | screen + distracting window | 🟡 Distracting window |

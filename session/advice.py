@@ -4,8 +4,6 @@
 def get_advice(s):
     """Rule-based coaching tips from the session metrics (fully offline)."""
     tips = []
-    if s.get("phone_count", 0) >= 3 or s.get("phone_min", 0) >= 5:
-        tips.append("Put your phone in another room (or at least out of reach) for the next session.")
     if s.get("distracted_screen_min", 0) >= 3:
         tips.append("Block distracting sites during focus time, or close those tabs before you start.")
     total = s.get("total_min", 0)

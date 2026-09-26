@@ -108,8 +108,7 @@ USER_SETTINGS_PATH = DATA_DIR / "user_settings.json"   # local preferences only,
 
 # --- Session ------------------------------------------------------------
 DEFAULT_SELF_ESTIMATE_PCT = 80
-DISTRACTION_NUDGE_SEC = 90       # configurable in the start window
-MIN_NUDGE_SEC = 20
+DISTRACTION_NUDGE_SEC = 90       # reminder after this many seconds of continuous distraction
 DISTRACTION_MIN_EVENT_SEC = 10   # min length of a distraction to be counted
 BEST_SEGMENT_MIN = 10
 UI_TICK_MS = 200
@@ -122,15 +121,15 @@ ICON_PNG = resource_path("assets/icon.png")
 # --- States -------------------------------------------------------------
 FOCUSED = "FOCUSED"
 DISTRACTED_SCREEN = "DISTRACTED_SCREEN"
-PHONE = "PHONE"
 LOOKING_AWAY = "LOOKING_AWAY"
 AWAY = "AWAY"
-STATES = [FOCUSED, DISTRACTED_SCREEN, PHONE, LOOKING_AWAY, AWAY]
+STATES = [FOCUSED, DISTRACTED_SCREEN, LOOKING_AWAY, AWAY]
+# sessions recorded before the phone state was removed: shown as "Looking away"
+LEGACY_STATES = {"PHONE": LOOKING_AWAY}
 
 STATE_COLORS = {
     FOCUSED: "#22c55e",
     DISTRACTED_SCREEN: "#eab308",
-    PHONE: "#f97316",
     LOOKING_AWAY: "#fb923c",
     AWAY: "#9ca3af",
 }
@@ -140,7 +139,6 @@ PAUSED_COLOR = "#6b7280"
 STATE_LABELS = {
     FOCUSED: "Focused",
     DISTRACTED_SCREEN: "Distracting window",
-    PHONE: "Phone?",
     LOOKING_AWAY: "Looking away",
     AWAY: "Away",
 }
@@ -159,6 +157,7 @@ UI = {
     "accent": "#0e72ed",      # primary button (Zoom blue)
     "accent_hover": "#2b86f5",
     "danger": "#ef4444",
+    "warn": "#f97316",        # below-expectation numbers
 }
 
 # --- UI texts -----------------------------------------------------------
@@ -168,9 +167,7 @@ TEXTS = {
     "name_label": "Session name (optional)",
     "name_hint": "Empty = {default}",
     "estimate_label": "How focused do you think you'll be?",
-    "more_settings": "More settings",
-    "nudge_label": "Remind me after this many seconds of distraction",
-    "apps_link": "Distracting apps & sites ({n} on)  ›",
+    "apps_link": "Distracting apps & sites ({n} on)",
     "history_button": "View stats of past sessions",
     "back": "Back",
     "new_session": "New session",
@@ -187,7 +184,6 @@ TEXTS = {
     "where_time_went": "Where the time went",
     "key_facts": "Key facts",
     "fact_distractions": "distractions (10 s+)",
-    "fact_phone": "times on the phone",
     "fact_streak": "longest focus streak",
     "fact_best": "best stretch: min {a}-{b}",
     "fact_total": "tracked (without pauses)",
@@ -204,13 +200,12 @@ TEXTS = {
     "tile_sessions": "sessions over {days} day{s}",
     "tile_best": "best: {name}",
     "tile_distracting": "on distracting sites/apps",
-    "tile_phone_time": "looking at the phone",
     "trend_title": "Focus per session: expected vs. real",
     "real_focus": "Real focus %",
     "where_all_time_went": "Where all the time went",
     "all_sessions_title": "All sessions",
     "col_when": "When", "col_session": "Session", "col_length": "Length", "col_focus": "Focus",
-    "col_expected": "Expected", "col_distr": "Distr.", "col_phone": "Phone",
+    "col_expected": "Expected", "col_distr": "Distr.",
     "table_hint": "Click a session to open its report.",
     "apps_title": "Distracting apps & sites",
     "apps_subtitle": "FocusCheck only checks which window is on top, never what is inside it. "
@@ -223,7 +218,6 @@ TEXTS = {
     "start_button": "Start session",
     "privacy_note": "Video never leaves this device and is never saved. "
                     "Keys and window titles are not recorded.",
-    "err_nudge": "Reminder threshold must be a whole number, at least {n} seconds.",
     "err_camera": "Could not open the camera. Close other apps using it and try again.",
     "calib_title": "Calibration",
     "calib_hint": "Look at the dot. Keep your usual working posture.",

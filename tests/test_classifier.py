@@ -18,8 +18,8 @@ def test_away_wins_everything():
     assert combine_state(AWAY, "distracting", True) == config.AWAY
 
 
-def test_down_without_input_is_phone():
-    assert combine_state(DOWN, "work", False) == config.PHONE
+def test_down_without_input_is_looking_away():
+    assert combine_state(DOWN, "work", False) == config.LOOKING_AWAY
 
 
 def test_down_with_input_is_focused():
@@ -65,12 +65,12 @@ def test_gaze_away_only_after_no_face_sec():
 # --- smoothing ---------------------------------------------------------
 def test_smoother_ignores_short_flicker():
     sm = StateSmoother(hold_sec=2.5)
-    assert sm.update(config.PHONE, 0.0) == config.FOCUSED
-    assert sm.update(config.PHONE, 1.0) == config.FOCUSED
+    assert sm.update(config.AWAY, 0.0) == config.FOCUSED
+    assert sm.update(config.AWAY, 1.0) == config.FOCUSED
     assert sm.update(config.FOCUSED, 1.5) == config.FOCUSED
-    assert sm.update(config.PHONE, 2.0) == config.FOCUSED
-    assert sm.update(config.PHONE, 4.4) == config.FOCUSED
-    assert sm.update(config.PHONE, 4.6) == config.PHONE
+    assert sm.update(config.AWAY, 2.0) == config.FOCUSED
+    assert sm.update(config.AWAY, 4.4) == config.FOCUSED
+    assert sm.update(config.AWAY, 4.6) == config.AWAY
 
 
 # --- window category (5.3, X11 rules) --------------------------------
@@ -155,8 +155,8 @@ def test_summary_on_fake_session():
     s = compute_summary(events, self_estimate_pct=90, nudges_count=2)
     assert s["total_min"] == round(len(events) / 60, 1)
     assert s["focused_min"] == round(1270 / 60, 1)
-    assert s["phone_count"] == 3
-    assert s["distraction_count"] == 5     # 20 s LOOKING_AWAY merges with PHONE episode
+    assert "phone_count" not in s and "phone_min" not in s
+    assert s["distraction_count"] == 5
     assert s["longest_focus_streak_min"] == 7.0
     assert s["longest_focus_streak_start_min"] == 0
     assert 0 <= s["focus_pct"] <= 100
@@ -175,3 +175,12 @@ def test_offline_advice_has_tips():
     s = compute_summary(fake_events(), 90, 0)
     advice = get_advice(s)
     assert 2 <= len(advice["tips"]) <= 3 and advice["analysis"]
+
+
+def test_old_sessions_with_phone_state_are_folded_into_looking_away():
+    from session.summary import normalize_session
+    data = {"events": [{"state": "PHONE"}, {"state": config.FOCUSED}],
+            "summary": {"phone_min": 1.5, "looking_away_min": 0.5, "phone_count": 2}}
+    normalize_session(data)
+    assert [e["state"] for e in data["events"]] == [config.LOOKING_AWAY, config.FOCUSED]
+    assert data["summary"] == {"looking_away_min": 2.0}

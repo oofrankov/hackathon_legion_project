@@ -40,7 +40,6 @@ def compute_summary(events, self_estimate_pct, nudges_count=0):
             i += 1
 
     runs = _runs(states)
-    phone_count = sum(1 for s, _, n in runs if s == config.PHONE and n >= min_len)
 
     focus_runs = [(start, n) for s, start, n in runs if s == config.FOCUSED]
     streak_start, streak_len = max(focus_runs, key=lambda r: r[1]) if focus_runs else (0, 0)
@@ -63,12 +62,10 @@ def compute_summary(events, self_estimate_pct, nudges_count=0):
         "total_min": _minutes(total),
         "focused_min": focused_min,
         "distracted_screen_min": _minutes(counts[config.DISTRACTED_SCREEN]),
-        "phone_min": _minutes(counts[config.PHONE]),
         "looking_away_min": _minutes(counts[config.LOOKING_AWAY]),
         "away_min": _minutes(counts[config.AWAY]),
         "focus_pct": focus_pct,
         "distraction_count": distraction_count,
-        "phone_count": phone_count,
         "longest_focus_streak_min": _minutes(streak_len),
         "longest_focus_streak_start_min": _minutes(streak_start),
         "longest_focus_streak_end_min": _minutes(streak_start + streak_len),
@@ -81,3 +78,14 @@ def compute_summary(events, self_estimate_pct, nudges_count=0):
         "estimate_gap_min": round(self_estimate_min - focused_min, 1),
         "nudges_count": nudges_count,
     }
+
+
+def normalize_session(data):
+    """Older sessions have a separate PHONE state: fold it into LOOKING_AWAY (in place)."""
+    for e in data.get("events") or []:
+        e["state"] = config.LEGACY_STATES.get(e.get("state"), e.get("state"))
+    s = data.get("summary") or {}
+    if "phone_min" in s:
+        s["looking_away_min"] = round(s.get("looking_away_min", 0) + s.pop("phone_min"), 1)
+    s.pop("phone_count", None)
+    return data

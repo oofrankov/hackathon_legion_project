@@ -14,6 +14,8 @@ def report_filename(started_at):
 
 
 def build_report(session_data, out_dir=config.SESSIONS_DIR, open_browser=True):
+    from session.summary import normalize_session
+    normalize_session(session_data)
     payload = {
         "session": session_data,
         "colors": config.STATE_COLORS,

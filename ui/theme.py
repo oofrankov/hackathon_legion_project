@@ -52,17 +52,33 @@ class RoundButton(tk.Canvas):
         self.text, self.command = text, command
         self.font = (F, font_size or (13 if kind == "primary" else 11), "bold")
         self._bg = None
+        self.chevron = None   # None | "down" | "up": drawn with lines (glyph-safe)
         self.bind("<Configure>", lambda _e: self._draw())
         self.bind("<Enter>", lambda _e: self._bg and self.itemconfig(self._bg, fill=self.hover))
         self.bind("<Leave>", lambda _e: self._bg and self.itemconfig(self._bg, fill=self.fill))
         self.bind("<ButtonRelease-1>", lambda _e: self.command())
+
+    def set_text(self, text, chevron=None):
+        self.text, self.chevron = text, chevron
+        self._draw()
 
     def _draw(self):
         self.delete("all")
         w, h = self.winfo_width(), self.winfo_height()
         self._bg = rounded_rect(self, 1, 1, w - 1, h - 1, px(12), fill=self.fill,
                                 outline=self.outline, width=1)
-        self.create_text(w / 2, h / 2, text=self.text, fill=self.fg, font=self.font)
+        if not self.chevron:
+            self.create_text(w / 2, h / 2, text=self.text, fill=self.fg, font=self.font)
+            return
+        gap, cw = px(8), px(10)
+        text_id = self.create_text(0, h / 2, text=self.text, fill=self.fg, font=self.font, anchor="w")
+        tw = self.bbox(text_id)[2] - self.bbox(text_id)[0]
+        x0 = (w - tw - gap - cw) / 2
+        self.coords(text_id, x0, h / 2)
+        cx, cy, d = x0 + tw + gap + cw / 2, h / 2, px(3)
+        pts = (cx - cw / 2, cy - d, cx, cy + d, cx + cw / 2, cy - d) if self.chevron == "down" \
+            else (cx - cw / 2, cy + d, cx, cy - d, cx + cw / 2, cy + d)
+        self.create_line(*pts, fill=self.fg, width=px(2))
 
 
 def link(parent, text, command, color="#60a5fa", size=10):

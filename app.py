@@ -63,7 +63,6 @@ class FocusCheckApp:
         if self.wayland:
             print("[window] " + config.TEXTS["wayland_warning"])
         self.user_settings, first_run = load_settings()
-        self.last_nudge_sec = config.DISTRACTION_NUDGE_SEC
         self.main = MainWindow(self.root, self)
         if first_run:  # let the user pick exceptions before the first session
             self.main.show_apps(first_run=True)
@@ -98,6 +97,8 @@ class FocusCheckApp:
         except (OSError, ValueError):
             return
         from report.report import report_filename
+        from session.summary import normalize_session
+        normalize_session(data)
         html = Path(config.SESSIONS_DIR, report_filename(data.get("started_at")))
         self.main.show_results(data, str(html) if html.exists() else None)
 
@@ -110,7 +111,6 @@ class FocusCheckApp:
     # --- flow ------------------------------------------------------------
     def start_session(self, settings):
         self.settings = settings
-        self.last_nudge_sec = settings["nudge_threshold_sec"]
         self.main.withdraw()
         self.tracker.set_owner_anchor(None)   # calibration mode: exactly one face allowed
         self.tracker.start()

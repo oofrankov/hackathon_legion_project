@@ -174,7 +174,7 @@ Object.keys(L).forEach(k => {
 // breakdown
 const parts = [
   ["FOCUSED", M.focused_min], ["DISTRACTED_SCREEN", M.distracted_screen_min],
-  ["PHONE", M.phone_min], ["LOOKING_AWAY", M.looking_away_min], ["AWAY", M.away_min],
+  ["LOOKING_AWAY", M.looking_away_min], ["AWAY", M.away_min],
 ];
 parts.forEach(([k, v]) => {
   const li = el("li");
@@ -197,7 +197,6 @@ if (window.Chart) {
 // facts
 [
   [M.distraction_count, "distractions (≥10 s)"],
-  [M.phone_count, "times on the phone"],
   [fmtMin(M.longest_focus_streak_min), `longest focus streak (min ${M.longest_focus_streak_start_min}–${M.longest_focus_streak_end_min})`],
   [M.best_segment_focus_pct + "%", `best stretch: min ${M.best_segment_start_min}–${M.best_segment_end_min}`],
   [fmtMin(M.total_min), "session time (without pauses)"],

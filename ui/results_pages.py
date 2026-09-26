@@ -10,7 +10,7 @@ from ui.theme import F, T, UI, RoundButton, ScrollArea, auto_wrap, card, link, p
 C, L = config.STATE_COLORS, config.STATE_LABELS
 STATE_MIN_KEYS = [
     (config.FOCUSED, "focused_min"), (config.DISTRACTED_SCREEN, "distracted_screen_min"),
-    (config.PHONE, "phone_min"), (config.LOOKING_AWAY, "looking_away_min"), (config.AWAY, "away_min"),
+    (config.LOOKING_AWAY, "looking_away_min"), (config.AWAY, "away_min"),
 ]
 
 
@@ -110,7 +110,7 @@ class ResultsPage(ScrollArea):
                                bg=UI["panel"], fg=UI["muted"], font=(F, 14, "bold"), justify="left", anchor="w")).pack(fill="x")
         good = exp is None or real >= exp
         auto_wrap(tk.Label(right, text=T["reality_line"].format(pct=real, minutes=fmt_min(s.get("focused_min", 0))),
-                           bg=UI["panel"], fg=C[config.FOCUSED] if good else C[config.PHONE],
+                           bg=UI["panel"], fg=C[config.FOCUSED] if good else UI["warn"],
                            font=(F, 14, "bold"), justify="left", anchor="w")).pack(fill="x")
         rows = ([(T["expected"], exp, UI["muted"])] if exp is not None else []) + [(T["actual"], real, C[config.FOCUSED])]
         charts.compare_bars(right, rows).pack(fill="x", pady=(px(10), 0))
@@ -132,7 +132,6 @@ class ResultsPage(ScrollArea):
         section_title(facts, T["key_facts"])
         _tiles(facts, [
             (s.get("distraction_count", 0), T["fact_distractions"]),
-            (s.get("phone_count", 0), T["fact_phone"]),
             (fmt_min(s.get("longest_focus_streak_min", 0)), T["fact_streak"]),
             (f"{s.get('best_segment_focus_pct', 0)}%", T["fact_best"].format(
                 a=s.get("best_segment_start_min", 0), b=s.get("best_segment_end_min", 0))),
@@ -183,7 +182,7 @@ class HistoryPage(ScrollArea):
         if o["avg_gap_pct"] is not None:
             over = o["avg_gap_pct"] > 0
             text = T["gap_over"].format(n=o["avg_gap_pct"]) if over else T["gap_ok"]
-            auto_wrap(tk.Label(right, text=text, bg=UI["panel"], fg=C[config.PHONE] if over else C[config.FOCUSED],
+            auto_wrap(tk.Label(right, text=text, bg=UI["panel"], fg=UI["warn"] if over else C[config.FOCUSED],
                                font=(F, 12, "bold"), justify="left", anchor="w")).pack(fill="x", pady=(px(4), 0))
 
         totals = card(self.body)
@@ -195,10 +194,8 @@ class HistoryPage(ScrollArea):
             (fmt_min(o["longest_streak_min"]), T["fact_streak"]),
             (f"{best['focus_pct']}%" if best else "-", T["tile_best"].format(name=best["name"]) if best else ""),
             (o["distractions"], T["fact_distractions"]),
-            (o["phone"], T["fact_phone"]),
             (fmt_min(o["state_min"][config.DISTRACTED_SCREEN]), T["tile_distracting"]),
-            (fmt_min(o["state_min"][config.PHONE]), T["tile_phone_time"]),
-        ], columns=4)
+        ], columns=3)
 
         tr = card(self.body)
         section_title(tr, T["trend_title"])
@@ -222,8 +219,8 @@ class HistoryPage(ScrollArea):
         grid = tk.Frame(parent, bg=UI["panel"])
         grid.pack(fill="x")
         headers = [T["col_when"], T["col_session"], T["col_length"], T["col_focus"], T["col_expected"],
-                   T["col_distr"], T["col_phone"]]
-        weights = [2, 3, 1, 1, 1, 1, 1]
+                   T["col_distr"]]
+        weights = [2, 3, 1, 1, 1, 1]
         for i, (h, wgt) in enumerate(zip(headers, weights)):
             grid.columnconfigure(i, weight=wgt)
             tk.Label(grid, text=h.upper(), bg=UI["panel"], fg=UI["muted"], font=(F, 8, "bold"),
@@ -231,7 +228,7 @@ class HistoryPage(ScrollArea):
         for r_i, r in enumerate(reversed(rows), start=1):
             values = [fmt_date(r["started_at"]), r["name"], fmt_min(r["total_min"]), f"{r['focus_pct']}%",
                       f"{r['expected_pct']}%" if r["expected_pct"] is not None else "-",
-                      str(r["distraction_count"]), str(r["phone_count"])]
+                      str(r["distraction_count"])]
             cells = []
             for c_i, v in enumerate(values):
                 fg = charts.pct_color(r["focus_pct"]) if c_i == 3 else UI["text"] if c_i < 2 else UI["muted"]

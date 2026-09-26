@@ -23,7 +23,8 @@ def combine_state(gaze, window, input_active):
     if gaze == AWAY:
         return config.AWAY
     if gaze == DOWN:
-        return config.FOCUSED if input_active else config.PHONE
+        # typing with the head down = looking at the keyboard; otherwise not on the screen
+        return config.FOCUSED if input_active else config.LOOKING_AWAY
     if gaze == SIDE:
         return config.LOOKING_AWAY
     if window == DISTRACTING:

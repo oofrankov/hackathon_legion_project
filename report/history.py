@@ -6,13 +6,13 @@ from pathlib import Path
 
 import config
 from report.report import report_filename
+from session.summary import normalize_session
 
 TEMPLATE = config.resource_path("report/history_template.html")
 HISTORY_FILE = "history.html"
 STATE_MIN_KEYS = {
     config.FOCUSED: "focused_min",
     config.DISTRACTED_SCREEN: "distracted_screen_min",
-    config.PHONE: "phone_min",
     config.LOOKING_AWAY: "looking_away_min",
     config.AWAY: "away_min",
 }
@@ -37,7 +37,7 @@ def load_sessions(sessions_dir=config.SESSIONS_DIR):
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        s = data.get("summary") or {}
+        s = normalize_session(data).get("summary") or {}
         if not s.get("total_min"):
             continue
         started = data.get("started_at", "")
@@ -51,7 +51,6 @@ def load_sessions(sessions_dir=config.SESSIONS_DIR):
             "expected_pct": expected_pct(data, s),
             "file": path.name,
             "distraction_count": s.get("distraction_count", 0),
-            "phone_count": s.get("phone_count", 0),
             "longest_focus_streak_min": s.get("longest_focus_streak_min", 0),
             "nudges_count": s.get("nudges_count", 0),
             "state_min": {state: s.get(key, 0) for state, key in STATE_MIN_KEYS.items()},
@@ -76,7 +75,6 @@ def compute_overall(rows):
         "focus_pct": round(focused / total * 100) if total else 0,
         "avg_gap_pct": round(sum(gaps) / len(gaps)) if gaps else None,
         "distractions": sum(r["distraction_count"] for r in rows),
-        "phone": sum(r["phone_count"] for r in rows),
         "longest_streak_min": max((r["longest_focus_streak_min"] for r in rows), default=0),
         "best": {"name": best["name"], "focus_pct": best["focus_pct"], "started_at": best["started_at"]} if best else None,
         "state_min": {state: round(sum(r["state_min"][state] for r in rows), 1) for state in STATE_MIN_KEYS},

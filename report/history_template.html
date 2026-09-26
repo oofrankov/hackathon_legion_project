@@ -30,7 +30,7 @@
   .headline { font-size: 24px; font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
   .headline .warn { color: var(--warn); }
   .headline .good { color: var(--accent); }
-  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .tile { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
   .tile b { display: block; font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .tile span { font-size: 13px; color: var(--muted); }
@@ -78,7 +78,7 @@ const fmtMin = m => {
   return (Math.round(m * 10) / 10).toString().replace(/\.0$/, "") + " min";
 };
 const fmtDate = iso => new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-const pctColor = p => p >= 75 ? C.FOCUSED : p >= 50 ? C.DISTRACTED_SCREEN : C.PHONE;
+const pctColor = p => p >= 75 ? C.FOCUSED : p >= 50 ? C.DISTRACTED_SCREEN : "#f97316";
 
 $("meta").textContent = `${O.sessions} session${O.sessions === 1 ? "" : "s"} · updated ${fmtDate(DATA.generated_at)}`;
 $("privacy").textContent = "🔒 " + DATA.privacy;
@@ -114,9 +114,7 @@ if (!ROWS.length) {
     [fmtMin(O.longest_streak_min), "longest focus streak"],
     [O.best ? O.best.focus_pct + "%" : "–", O.best ? `best: ${O.best.name}` : "best session"],
     [O.distractions, "distractions (≥10 s)"],
-    [O.phone, "times on the phone"],
     [fmtMin(O.state_min.DISTRACTED_SCREEN), "on distracting sites/apps"],
-    [fmtMin(O.state_min.PHONE), "looking at the phone"],
   ].forEach(([v, label]) => {
     const t = el("div", { className: "tile" });
     t.append(el("b", {}, String(v)), el("span", {}, label));
@@ -178,7 +176,7 @@ if (!ROWS.length) {
   const wrap = el("div", { className: "table-wrap" });
   const table = el("table");
   table.innerHTML = `<thead><tr><th>When</th><th>Session</th><th class="num">Length</th><th class="num">Focus</th>
-    <th class="num">Expected</th><th>Time split</th><th class="num">Distr.</th><th class="num">Phone</th><th></th></tr></thead>`;
+    <th class="num">Expected</th><th>Time split</th><th class="num">Distr.</th><th></th></tr></thead>`;
   const tb = el("tbody");
   [...ROWS].reverse().forEach(r => {
     const tr = el("tr");
@@ -194,7 +192,7 @@ if (!ROWS.length) {
     const focusTd = el("td", { className: "num" }); focusTd.append(pill); cells.push(focusTd);
     cells.push(el("td", { className: "num muted" }, r.expected_pct != null ? r.expected_pct + "%" : "–"));
     const splitTd = el("td"); splitTd.append(mini); cells.push(splitTd);
-    cells.push(el("td", { className: "num" }, String(r.distraction_count)), el("td", { className: "num" }, String(r.phone_count)));
+    cells.push(el("td", { className: "num" }, String(r.distraction_count)));
     const linkTd = el("td");
     if (r.report) linkTd.append(el("a", { href: r.report }, "Report →"));
     cells.push(linkTd);

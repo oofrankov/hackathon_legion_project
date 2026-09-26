@@ -36,7 +36,6 @@ def test_overall_stats(tmp_path):
     assert o["total_min"] == 60.0
     assert o["focus_pct"] == 71
     assert o["avg_gap_pct"] == round(((90 - 71) + (60 - 71)) / 2)
-    assert o["phone"] == 6
 
 
 def test_empty_history_page(tmp_path):

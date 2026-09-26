@@ -120,7 +120,7 @@ def stacked_bar(parent, parts, height=16):
 
 
 def pct_color(p):
-    return C[config.FOCUSED] if p >= 75 else C[config.DISTRACTED_SCREEN] if p >= 50 else C[config.PHONE]
+    return C[config.FOCUSED] if p >= 75 else C[config.DISTRACTED_SCREEN] if p >= 50 else UI["warn"]
 
 
 def trend(parent, rows, max_bars=30):

@@ -112,22 +112,12 @@ class StartPage(tk.Frame):
                  command=lambda _v: self._update_estimate()).pack(fill="x", pady=(px(6), 0))
         self._update_estimate()
 
-        self.more_open = False
-        self.more_btn = link(self, "", self._toggle_more, color=UI["muted"])
-        self.more_btn.pack(anchor="w", pady=(px(14), 0))
-        self.more = tk.Frame(self, bg=UI["bg"])
-        self.nudge = tk.StringVar(value=str(ctrl.last_nudge_sec))
-        _label(self.more, T["nudge_label"])
-        _entry(self.more, self.nudge, width=8).pack(anchor="w", ipady=px(4))
-        self._render_more()
-
-        link(self, T["apps_link"].format(n=ctrl.apps_count()), ctrl.edit_apps).pack(anchor="w", pady=(px(8), 0))
-
-        self.error = tk.Label(self, bg=UI["bg"], fg=UI["danger"], font=(F, 9), justify="left", anchor="w")
-        auto_wrap(self.error).pack(fill="x", pady=(px(6), 0))
-
-        RoundButton(self, T["start_button"], self._submit, "primary", height=48).pack(fill="x", pady=(px(8), px(8)))
-        RoundButton(self, T["history_button"], ctrl.show_history, "secondary", height=42).pack(fill="x", pady=(0, px(14)))
+        # secondary actions first, the main action last (closest to the privacy note)
+        RoundButton(self, T["apps_link"].format(n=ctrl.apps_count()), ctrl.edit_apps,
+                    "secondary", height=38, font_size=10).pack(fill="x", pady=(px(16), px(8)))
+        RoundButton(self, T["history_button"], ctrl.show_history, "secondary", height=38,
+                    font_size=10).pack(fill="x", pady=(0, px(14)))
+        RoundButton(self, T["start_button"], self._submit, "primary", height=48).pack(fill="x", pady=(0, px(14)))
         auto_wrap(tk.Label(self, text=T["privacy_note"], bg=UI["bg"], fg=UI["muted"], font=(F, 9),
                            justify="left", anchor="w")).pack(fill="x")
         win_bind = self.winfo_toplevel()
@@ -137,34 +127,11 @@ class StartPage(tk.Frame):
     def _update_estimate(self):
         self.estimate_lbl.config(text=f"{self.estimate.get()}%")
 
-    def _toggle_more(self):
-        self.more_open = not self.more_open
-        self._render_more()
-        top = self.winfo_toplevel()
-        top.update_idletasks()
-        top.geometry(f"{top.winfo_width()}x{min(self.winfo_reqheight(), top.winfo_screenheight() - px(120))}")
-
-    def _render_more(self):
-        self.more_btn.config(text=("▾ " if self.more_open else "▸ ") + T["more_settings"])
-        if self.more_open:
-            self.more.pack(fill="x", after=self.more_btn)
-        else:
-            self.more.pack_forget()
-
     def _submit(self):
-        try:
-            nudge = int(self.nudge.get())
-        except ValueError:
-            nudge = -1
-        if nudge < config.MIN_NUDGE_SEC:
-            self.error.config(text=T["err_nudge"].format(n=config.MIN_NUDGE_SEC))
-            if not self.more_open:
-                self._toggle_more()
-            return
         self.ctrl.start_session({
             "name": self.name.get().strip() or self.default_name,
             "self_estimate_pct": int(self.estimate.get()),
-            "nudge_threshold_sec": nudge,
+            "nudge_threshold_sec": config.DISTRACTION_NUDGE_SEC,
         })
 
 

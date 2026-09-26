@@ -3,15 +3,14 @@ import config
 
 GAZE_FOR_STATE = {
     config.FOCUSED: "SCREEN", config.DISTRACTED_SCREEN: "SCREEN",
-    config.PHONE: "DOWN", config.LOOKING_AWAY: "SIDE", config.AWAY: "AWAY",
+    config.LOOKING_AWAY: "SIDE", config.AWAY: "AWAY",
 }
 
 # (state, seconds) - roughly a realistic 30-minute session
 SCRIPT = [
-    (config.FOCUSED, 420), (config.PHONE, 75), (config.FOCUSED, 300),
-    (config.DISTRACTED_SCREEN, 150), (config.FOCUSED, 240), (config.PHONE, 40),
-    (config.LOOKING_AWAY, 20), (config.FOCUSED, 180), (config.AWAY, 120),
-    (config.FOCUSED, 90), (config.DISTRACTED_SCREEN, 95), (config.PHONE, 30),
+    (config.FOCUSED, 420), (config.LOOKING_AWAY, 75), (config.FOCUSED, 300),
+    (config.DISTRACTED_SCREEN, 150), (config.FOCUSED, 240), (config.LOOKING_AWAY, 60), (config.FOCUSED, 180), (config.AWAY, 120),
+    (config.FOCUSED, 90), (config.DISTRACTED_SCREEN, 95), (config.LOOKING_AWAY, 30),
     (config.FOCUSED, 40),
 ]
 
