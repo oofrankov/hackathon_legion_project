@@ -25,7 +25,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Optional: copy `.env.example` to `.env` and set `OPENAI_API_KEY` to get AI tips. Without a key, or without internet, the report shows rule-based tips and nothing breaks.
+Everything works offline. The coaching tips in the report are simple rules over your session numbers; no AI service is called.
 
 Other commands:
 
@@ -84,7 +84,7 @@ FocusCheck follows only the person who calibrated, the **owner**. It recognises 
 - **No biometrics.** There are no face embeddings and no face recognition. Only face position and size are used, in memory only, to follow the session owner. Other people in the frame are never analysed.
 - **Keys are never recorded.** Only the time of the last input event is kept.
 - **Window titles, window classes and process names are never stored or logged.** They are turned into `work` / `distracting` in memory and discarded. No screenshots, no reading of window contents.
-- OpenAI receives **only numeric metrics**. No video, titles or task text.
+- **Nothing is sent anywhere.** There is no cloud and no AI API; the tips are computed locally.
 - The camera is on only during a session and is turned off on Pause.
 - Everything is stored locally in `sessions/`. Delete the files to erase your history.
 - There are no accounts, no cloud and no "watch others" mode. It is a tool for yourself only.
@@ -93,13 +93,12 @@ FocusCheck follows only the person who calibrated, the **owner**. It recognises 
 
 ```
 app.py               entry point, main loop (tkinter main thread)
-config.py            thresholds, keywords, texts, OpenAI model
+config.py            thresholds, keywords, texts
 tracker/             face.py (MediaPipe thread), calibration.py, classifier.py
 monitors/            window.py (active window category), input_activity.py (pynput)
 ui/                  start_window.py, calibration_window.py, widget.py
-session/             recorder.py (events → JSON), summary.py (metrics)
+session/             recorder.py (events → JSON), summary.py (metrics), advice.py (offline tips)
 report/              report.py + template.html (Chart.js)
-ai/advice.py         OpenAI tips with an offline fallback
 tests/               unit tests on synthetic data
 ```
 

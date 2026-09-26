@@ -209,8 +209,8 @@ if (window.Chart) {
 });
 
 // advice
-const A = S.advice || { source: "fallback", analysis: "", tips: [] };
-$("advice-src").textContent = A.source === "ai" ? "AI · numbers only" : "offline tips";
+const A = S.advice || { analysis: "", tips: [] };
+$("advice-src").textContent = "based on your numbers";
 $("analysis").textContent = A.analysis;
 A.tips.forEach(t => $("tips").append(el("li", {}, t)));
 

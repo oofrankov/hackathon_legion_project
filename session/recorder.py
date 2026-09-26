@@ -17,7 +17,7 @@ class SessionRecorder:
         self.meta = {
             "started_at": self.started.isoformat(timespec="seconds"),
             "session_number": session_number or next_session_number(),
-            "name": name,  # local only, never sent to OpenAI
+            "name": name,  # local only
             "self_estimate_pct": self_estimate_pct,
             "nudge_threshold_sec": nudge_threshold_sec,
         }

@@ -1,8 +1,8 @@
 """Classifier, summary and privacy-related tests on synthetic data (no camera)."""
 import config
-from ai.advice import fallback_advice, numeric_only
 from monitors.app_settings import default_settings
 from monitors.window import Rules, WindowInfo, WindowMonitor, classify, is_own_window
+from session.advice import get_advice
 from session.summary import compute_summary
 from tests.fake_session import fake_events
 from tracker.calibration import make_calibration
@@ -170,13 +170,8 @@ def test_summary_empty():
     assert s["total_min"] == 0 and s["focus_pct"] == 0
 
 
-# --- advice privacy ----------------------------------------------------
-def test_only_numbers_go_to_openai():
-    data = numeric_only({"focus_pct": 50, "task": "secret", "flag": True, "x": 1.5})
-    assert data == {"focus_pct": 50, "x": 1.5}
-
-
-def test_fallback_advice_has_tips():
+# --- offline advice ----------------------------------------------------
+def test_offline_advice_has_tips():
     s = compute_summary(fake_events(), 90, 0)
-    advice = fallback_advice(s)
+    advice = get_advice(s)
     assert 2 <= len(advice["tips"]) <= 3 and advice["analysis"]

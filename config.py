@@ -88,10 +88,6 @@ MEME_POPUP_SEC = 4
 SESSIONS_DIR = "sessions"
 MEMES_DIR = "assets/memes"
 
-# --- OpenAI -------------------------------------------------------------
-OPENAI_MODEL = "gpt-5-nano"      # cheapest text model; change if unavailable
-OPENAI_TIMEOUT_SEC = 15
-
 # --- States -------------------------------------------------------------
 FOCUSED = "FOCUSED"
 DISTRACTED_SCREEN = "DISTRACTED_SCREEN"

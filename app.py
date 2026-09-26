@@ -12,15 +12,13 @@ from pathlib import Path
 # run from any cwd: all relative paths (models/, sessions/) are project-relative
 os.chdir(Path(__file__).resolve().parent)
 
-from dotenv import load_dotenv  # noqa: E402
-
 import config  # noqa: E402
-from ai.advice import get_advice  # noqa: E402
 from monitors.input_activity import InputActivity  # noqa: E402
 from monitors.app_settings import enabled_count, load_settings, save_settings  # noqa: E402
 from monitors.window import Rules, WindowMonitor, is_wayland  # noqa: E402
 from report.history import build_history  # noqa: E402
 from report.report import build_report  # noqa: E402
+from session.advice import get_advice  # noqa: E402
 from session.recorder import SessionRecorder, next_session_number  # noqa: E402
 from session.summary import compute_summary  # noqa: E402
 from tracker.classifier import GazeTracker, StateSmoother, combine_state  # noqa: E402
@@ -232,7 +230,7 @@ class FocusCheckApp:
         rec = self.recorder
         result = {}
 
-        def work():  # OpenAI call may take up to the timeout: keep UI responsive
+        def work():  # file writes off the UI thread
             summary = compute_summary(rec.events, rec.meta["self_estimate_pct"], len(rec.nudges))
             advice = get_advice(summary)
             data = rec.to_dict(summary, advice)
@@ -287,7 +285,6 @@ def enable_crash_log():
 
 def main():
     crash_log = enable_crash_log()  # noqa: F841 - keep the file open for the whole run
-    load_dotenv()
     parser = argparse.ArgumentParser(description="FocusCheck")
     parser.add_argument("--debug", action="store_true", help="print head angles to console")
     parser.add_argument("--demo-report", action="store_true", help="open a report from fake data")
