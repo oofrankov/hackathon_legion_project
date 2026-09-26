@@ -52,7 +52,7 @@ Everything works offline. The coaching tips in the report are simple rules over 
 | Command | What it does |
 |---|---|
 | `python app.py --debug` | prints yaw/pitch/EAR to the console (numbers only) for tuning thresholds |
-| `python app.py --history` | opens stats of all past sessions |
+| `python app.py --history` | opens the app on the history page |
 | `python app.py --selftest` | checks the install/build without camera, windows or keyboard (exit code 0 = OK) |
 | `python app.py --demo-report` | opens a report built from a fake 30-minute session, no camera needed |
 | `python -m pytest -q` | runs the unit tests |
@@ -81,15 +81,15 @@ Every build runs the unit tests and `--selftest`. The workflow uses no secrets.
 
 ## How it works
 
-0. **First launch**: choose which apps and sites count as distracting. The defaults come from the team's list: social networks and video are on, messengers are off because people need them for work communication. You can untick anything you need for work and add your own apps or sites (e.g. `chess.com`, `minecraft`). The choice is stored locally in `user_settings.json` in your data folder and can be changed from the start screen.
+0. **First launch**: choose which apps and sites count as distracting (in the same window; later via "Distracting apps & sites" on the start screen). The defaults come from the team's list: social networks and video are on, messengers are off because people need them for work communication. You can untick anything you need for work and add your own apps or sites (e.g. `chess.com`, `minecraft`). The choice is stored locally in `user_settings.json` in your data folder and can be changed from the start screen.
 1. **Start**: open the app and press **Start session**. The session name is optional; if it is empty the app uses "Session N · HH:MM". You can set your focus estimate (%) with a slider. The reminder threshold and extra distracting sites are under "More settings".
 2. **Calibration** (10 s): look at a dot in the center and in the 4 corners. This records your "looking at the screen" head-pose range.
 3. **Widget** (Zoom-style, always on top, draggable): state, timer counting up (no preset length) and focus %, with Pause, camera view and Stop buttons.
    - **Compact mode** (default): a slim bar.
    - **Camera mode** (camera button): adds a small live camera view with the same info. The preview is shown only in this window and is kept in memory only.
 4. **Nudge**: after N seconds of continuous distraction the widget flashes red and beeps. If there are PNG/GIF files in `assets/memes/`, one of them pops up.
-5. **Report**: after Stop, a report opens in your browser. The session is saved to `sessions/` in your data folder (see [Install](#install)).
-6. **History** (`sessions/history.html` in the data folder): overall stats and all past sessions. It shows total and focused time, overall focus %, the average gap between expected and real focus, the best session, distractions, a per-session chart (real vs. expected focus), where all the time went, and a table with a link to each report. Open it from the start screen ("View stats of past sessions" button, no session needed), from any report ("All sessions →"), or with `python app.py --history`. It is rebuilt after every session.
+5. **Report**: after Stop, the main window shows the session report: focus score, expected vs. real, timeline, breakdown, key facts and tips. Use "Open in browser" to get the HTML version, for example to share it. The session is saved to `sessions/` in your data folder (see [Install](#install)).
+6. **History**: overall stats and all past sessions, shown inside the app. Click a session to open its report. An HTML version is saved to `sessions/history.html` in the data folder. It shows total and focused time, overall focus %, the average gap between expected and real focus, the best session, distractions, a per-session chart (real vs. expected focus), where all the time went, and a table with a link to each report. Open it from the start screen ("View stats of past sessions", no session needed), from a report ("All sessions"), or with `python app.py --history`. It is rebuilt after every session.
 
 | Signals | State |
 |---|---|
@@ -141,7 +141,7 @@ app.py               entry point, main loop (tkinter main thread), --selftest
 config.py            thresholds, keywords, texts, resource_path() / user_data_dir()
 tracker/             face.py (MediaPipe thread), calibration.py, classifier.py, owner_lock.py
 monitors/            window.py (active window category), input_activity.py (pynput), app_settings.py
-ui/                  start_window.py, apps_window.py, calibration_window.py, widget.py
+ui/                  main_window.py (start + apps pages), results_pages.py (report + history), charts.py, theme.py (DPI scaling), calibration_window.py, widget.py
 session/             recorder.py (events → JSON), summary.py (metrics), advice.py (offline tips)
 report/              report.py, history.py + HTML templates (Chart.js)
 assets/              icons (+ optional memes/)

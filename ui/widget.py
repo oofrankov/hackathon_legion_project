@@ -8,20 +8,21 @@ import sys
 import tkinter as tk
 
 import config
+from ui.theme import px, rounded_rect
 
 T, UI = config.TEXTS, config.UI
 F = config.UI_FONT
 IS_WIN = sys.platform.startswith("win")
 KEY = "#010203"            # transparent key color for rounded corners (Windows)
 
-PAD, BAR_H, BTN, NOTICE_H = 8, 56, 36, 22
-W = config.PREVIEW_W + 2 * PAD
+# pixel sizes are set from the screen DPI when the first widget is created
+PAD = BAR_H = BTN = NOTICE_H = W = 0
 
 
-def rounded_rect(c, x1, y1, x2, y2, r, **kw):
-    pts = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2,
-           x2 - r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
-    return c.create_polygon(pts, smooth=True, **kw)
+def _apply_scale():
+    global PAD, BAR_H, BTN, NOTICE_H, W
+    PAD, BAR_H, BTN, NOTICE_H = px(8), px(56), px(36), px(22)
+    W = config.PREVIEW_W + 2 * PAD
 
 
 def fmt_time(sec):
@@ -34,6 +35,7 @@ def fmt_time(sec):
 class Widget(tk.Toplevel):
     def __init__(self, master, on_pause, on_stop, on_camera_view):
         super().__init__(master)
+        _apply_scale()
         self.on_pause, self.on_stop, self.on_camera_view = on_pause, on_stop, on_camera_view
         self.overrideredirect(True)
         self.attributes("-topmost", True)
@@ -66,7 +68,7 @@ class Widget(tk.Toplevel):
         h = self._height()
         self.geometry(f"{W}x{h}+{self._x}+{self._y}")
         c.config(width=W, height=h)
-        self.panel = rounded_rect(c, 1, 1, W - 1, h - 1, 14, fill=UI["panel"],
+        self.panel = rounded_rect(c, 1, 1, W - px(1), h - px(1), px(14), fill=UI["panel"],
                                   outline=UI["border"], width=1, tags="drag")
 
         bar_top = 0
@@ -77,26 +79,26 @@ class Widget(tk.Toplevel):
             self.video = c.create_image(vx, vy, anchor="nw", tags="drag")
             self.cam_off = c.create_text(vx + vw / 2, vy + vh / 2, text=T["widget_cam_off"],
                                          fill=UI["muted"], font=(F, 11), tags="drag")
-            self.video_border = c.create_rectangle(vx, vy, vx + vw, vy + vh, outline=UI["border"], width=3)
+            self.video_border = c.create_rectangle(vx, vy, vx + vw, vy + vh, outline=UI["border"], width=px(3))
             # "● REC" tag top-left, name-tag style state label bottom-left (like Zoom)
-            self.rec_bg = c.create_rectangle(vx + 6, vy + 6, vx + 6, vy + 26, fill="#1f2329", outline="")
-            self.rec_txt = c.create_text(vx + 12, vy + 16, anchor="w", text=T["widget_rec"],
+            self.rec_bg = c.create_rectangle(vx + px(6), vy + px(6), vx + px(6), vy + px(26), fill="#1f2329", outline="")
+            self.rec_txt = c.create_text(vx + px(12), vy + px(16), anchor="w", text=T["widget_rec"],
                                          fill="#fca5a5", font=(F, 8))
-            c.coords(self.rec_bg, vx + 6, vy + 6, c.bbox(self.rec_txt)[2] + 6, vy + 26)
-            self.tag_bg = c.create_rectangle(vx + 6, vy + vh - 30, vx + 6, vy + vh - 6, fill="#1f2329", outline="")
-            self.tag_dot = c.create_oval(vx + 12, vy + vh - 23, vx + 22, vy + vh - 13, outline="")
-            self.tag_txt = c.create_text(vx + 28, vy + vh - 18, anchor="w", fill=UI["text"], font=(F, 10, "bold"))
+            c.coords(self.rec_bg, vx + px(6), vy + px(6), c.bbox(self.rec_txt)[2] + px(6), vy + px(26))
+            self.tag_bg = c.create_rectangle(vx + px(6), vy + vh - px(30), vx + px(6), vy + vh - px(6), fill="#1f2329", outline="")
+            self.tag_dot = c.create_oval(vx + px(12), vy + vh - px(23), vx + px(22), vy + vh - px(13), outline="")
+            self.tag_txt = c.create_text(vx + px(28), vy + vh - px(18), anchor="w", fill=UI["text"], font=(F, 10, "bold"))
             bar_top = PAD + vh
 
         cy = bar_top + BAR_H / 2
-        self.dot = c.create_oval(PAD + 6, cy - 9, PAD + 24, cy + 9, fill=UI["muted"], outline="", tags="drag")
-        self.title = c.create_text(PAD + 34, cy - 9, anchor="w", fill=UI["text"],
+        self.dot = c.create_oval(PAD + px(6), cy - px(9), PAD + px(24), cy + px(9), fill=UI["muted"], outline="", tags="drag")
+        self.title = c.create_text(PAD + px(34), cy - px(9), anchor="w", fill=UI["text"],
                                    font=(F, 11, "bold"), tags="drag")
-        self.sub = c.create_text(PAD + 34, cy + 10, anchor="w", fill=UI["muted"], font=(F, 9), tags="drag")
+        self.sub = c.create_text(PAD + px(34), cy + px(10), anchor="w", fill=UI["muted"], font=(F, 9), tags="drag")
 
         self._btn_centers = {
-            "pause": (W - PAD - BTN / 2 - 2 * (BTN + 4), cy),
-            "camera": (W - PAD - BTN / 2 - (BTN + 4), cy),
+            "pause": (W - PAD - BTN / 2 - 2 * (BTN + px(4)), cy),
+            "camera": (W - PAD - BTN / 2 - (BTN + px(4)), cy),
             "stop": (W - PAD - BTN / 2, cy),
         }
         for name in self._btn_centers:
@@ -104,9 +106,9 @@ class Widget(tk.Toplevel):
 
         self.notice = None
         if self.others:
-            ny = bar_top + BAR_H + NOTICE_H / 2 - 4
-            c.create_line(PAD + 6, bar_top + BAR_H - 2, W - PAD - 6, bar_top + BAR_H - 2, fill=UI["border"])
-            self.notice = c.create_text(PAD + 8, ny, anchor="w", fill=UI["muted"], font=(F, 8), tags="drag",
+            ny = bar_top + BAR_H + NOTICE_H / 2 - px(4)
+            c.create_line(PAD + px(6), bar_top + BAR_H - px(2), W - PAD - px(6), bar_top + BAR_H - px(2), fill=UI["border"])
+            self.notice = c.create_text(PAD + px(8), ny, anchor="w", fill=UI["muted"], font=(F, 8), tags="drag",
                                         text=self._others_text())
 
         c.tag_bind("drag", "<ButtonPress-1>", self._drag_start)
@@ -118,23 +120,23 @@ class Widget(tk.Toplevel):
         c.delete(tag)
         x, y = self._btn_centers[name]
         active = name == "camera" and self.camera_view
-        rounded_rect(c, x - BTN / 2, y - BTN / 2, x + BTN / 2, y + BTN / 2, 8,
+        rounded_rect(c, x - BTN / 2, y - BTN / 2, x + BTN / 2, y + BTN / 2, px(8),
                      fill=UI["accent"] if active else UI["panel"], outline="", tags=(tag, f"{tag}_bg"))
         ic = UI["text"] if active else UI["icon"]
         if name == "pause":
             if self.paused:   # play triangle
-                c.create_polygon(x - 5, y - 8, x - 5, y + 8, x + 8, y, fill="", outline=ic, width=2, tags=tag)
+                c.create_polygon(x - px(5), y - px(8), x - px(5), y + px(8), x + px(8), y, fill="", outline=ic, width=px(2), tags=tag)
             else:
-                c.create_line(x - 4, y - 8, x - 4, y + 8, fill=ic, width=3, tags=tag)
-                c.create_line(x + 4, y - 8, x + 4, y + 8, fill=ic, width=3, tags=tag)
+                c.create_line(x - px(4), y - px(8), x - px(4), y + px(8), fill=ic, width=px(3), tags=tag)
+                c.create_line(x + px(4), y - px(8), x + px(4), y + px(8), fill=ic, width=px(3), tags=tag)
         elif name == "camera":
-            rounded_rect(c, x - 11, y - 7, x + 4, y + 7, 3, fill="", outline=ic, width=2, tags=tag)
-            c.create_polygon(x + 4, y - 2, x + 11, y - 6, x + 11, y + 6, x + 4, y + 2,
-                             fill="", outline=ic, width=2, tags=tag)
+            rounded_rect(c, x - px(11), y - px(7), x + px(4), y + px(7), px(3), fill="", outline=ic, width=px(2), tags=tag)
+            c.create_polygon(x + px(4), y - px(2), x + px(11), y - px(6), x + px(11), y + px(6), x + px(4), y + px(2),
+                             fill="", outline=ic, width=px(2), tags=tag)
             if self.camera_on:  # small red "recording locally" dot
-                c.create_oval(x + 8, y - 14, x + 14, y - 8, fill=UI["danger"], outline="", tags=tag)
+                c.create_oval(x + px(8), y - px(14), x + px(14), y - px(8), fill=UI["danger"], outline="", tags=tag)
         elif name == "stop":
-            rounded_rect(c, x - 7, y - 7, x + 7, y + 7, 3, fill=UI["danger"], outline="", tags=tag)
+            rounded_rect(c, x - px(7), y - px(7), x + px(7), y + px(7), px(3), fill=UI["danger"], outline="", tags=tag)
 
         c.tag_bind(tag, "<Enter>", lambda _e: self._hover(name, True))
         c.tag_bind(tag, "<Leave>", lambda _e: self._hover(name, False))
@@ -196,7 +198,7 @@ class Widget(tk.Toplevel):
             c.itemconfig(self.tag_dot, fill=color)
             c.itemconfig(self.tag_txt, text=f"{label} · {focus_pct}%")
             _, y1, _, y2 = c.coords(self.tag_bg)
-            c.coords(self.tag_bg, PAD + 6, y1, c.bbox(self.tag_txt)[2] + 8, y2)
+            c.coords(self.tag_bg, PAD + px(6), y1, c.bbox(self.tag_txt)[2] + px(8), y2)
             c.itemconfig(self.cam_off, state="hidden" if camera_on else "normal")
             for item in (self.rec_bg, self.rec_txt):
                 c.itemconfig(item, state="normal" if camera_on else "hidden")

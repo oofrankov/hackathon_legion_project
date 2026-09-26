@@ -18,7 +18,7 @@ STATE_MIN_KEYS = {
 }
 
 
-def _expected_pct(data, summary):
+def expected_pct(data, summary):
     if summary.get("self_estimate_pct") is not None:
         return summary["self_estimate_pct"]
     if data.get("self_estimate_pct") is not None:
@@ -48,7 +48,8 @@ def load_sessions(sessions_dir=config.SESSIONS_DIR):
             "total_min": s.get("total_min", 0),
             "focused_min": s.get("focused_min", 0),
             "focus_pct": s.get("focus_pct", 0),
-            "expected_pct": _expected_pct(data, s),
+            "expected_pct": expected_pct(data, s),
+            "file": path.name,
             "distraction_count": s.get("distraction_count", 0),
             "phone_count": s.get("phone_count", 0),
             "longest_focus_streak_min": s.get("longest_focus_streak_min", 0),

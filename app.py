@@ -4,9 +4,11 @@ import faulthandler
 import random
 import shutil
 import sys
+import json
 import threading
 import time
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 
 import config
@@ -20,9 +22,9 @@ from session.recorder import SessionRecorder, next_session_number
 from session.summary import compute_summary
 from tracker.classifier import GazeTracker, StateSmoother, combine_state
 from tracker.face import FaceTracker
-from ui.apps_window import AppsWindow
 from ui.calibration_window import CalibrationWindow
-from ui.start_window import StartWindow
+from ui import theme
+from ui.main_window import MainWindow
 from ui.widget import Widget, ask_recalibration, show_meme
 
 
@@ -47,6 +49,7 @@ class FocusCheckApp:
                 pass
         self.root = tk.Tk(className=config.APP_WM_CLASS)  # WM_CLASS lets us ignore our own windows
         self.root.withdraw()
+        theme.init(self.root)   # pixel sizes follow the screen DPI
         self.root.title(config.TEXTS["app_title"])
         try:
             self.root.iconphoto(True, tk.PhotoImage(file=str(config.ICON_PNG)))
@@ -60,36 +63,62 @@ class FocusCheckApp:
         if self.wayland:
             print("[window] " + config.TEXTS["wayland_warning"])
         self.user_settings, first_run = load_settings()
-        self.start_window = StartWindow(self.root, next_session_number(), enabled_count(self.user_settings),
-                                        self.on_start, self.quit, self.edit_apps, self.show_history,
-                                        wayland=self.wayland)
+        self.last_nudge_sec = config.DISTRACTION_NUDGE_SEC
+        self.main = MainWindow(self.root, self)
         if first_run:  # let the user pick exceptions before the first session
-            self.edit_apps()
+            self.main.show_apps(first_run=True)
+        else:
+            self.main.show_start()
+
+    # --- main window pages (called by ui.main_window / ui.results_pages) ---
+    next_session_number = staticmethod(next_session_number)
+
+    def apps_count(self):
+        return enabled_count(self.user_settings)
+
+    def show_start(self):
+        self.main.show_start()
 
     def show_history(self):
-        print("History:", build_history())
+        self.main.show_history()
 
     def edit_apps(self):
-        self.start_window.withdraw()
-        AppsWindow(self.root, self.user_settings, self.on_apps_saved)
+        self.main.show_apps()
 
-    def on_apps_saved(self, settings):
+    def save_apps(self, settings):
         self.user_settings = settings
         save_settings(settings)
-        self.start_window.set_apps_count(enabled_count(settings))
-        self.start_window.deiconify()
+        self.main.show_start()
+
+    def open_session(self, filename):
+        """Open a past session's report inside the app."""
+        path = Path(config.SESSIONS_DIR, filename)
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        from report.report import report_filename
+        html = Path(config.SESSIONS_DIR, report_filename(data.get("started_at")))
+        self.main.show_results(data, str(html) if html.exists() else None)
+
+    def open_in_browser(self, path):
+        webbrowser.open(Path(path).as_uri())
+
+    def open_history_in_browser(self):
+        build_history(open_browser=True)
 
     # --- flow ------------------------------------------------------------
-    def on_start(self, settings):
+    def start_session(self, settings):
         self.settings = settings
-        self.start_window.withdraw()
+        self.last_nudge_sec = settings["nudge_threshold_sec"]
+        self.main.withdraw()
         self.tracker.set_owner_anchor(None)   # calibration mode: exactly one face allowed
         self.tracker.start()
         CalibrationWindow(self.root, self.tracker, self.on_calibrated, self.on_calibration_cancel)
 
     def on_calibration_cancel(self):
         self.tracker.stop()
-        self.start_window.deiconify()
+        self.main.show_start()
 
     def on_calibrated(self, calib, anchor):
         s = self.settings
@@ -235,6 +264,7 @@ class FocusCheckApp:
             summary = compute_summary(rec.events, rec.meta["self_estimate_pct"], len(rec.nudges))
             advice = get_advice(summary)
             data = rec.to_dict(summary, advice)
+            result["data"] = data
             result["json"] = rec.save(data)
             result["html"] = build_report(data, open_browser=False)
             build_history(open_browser=False)  # keep the "All sessions" page up to date
@@ -247,11 +277,12 @@ class FocusCheckApp:
         if th.is_alive():
             self.root.after(200, self._wait_report, th, result)
             return
+        self.widget.destroy()
         if "html" in result:
-            print(f"Session saved: {result['json']}\nReport: {result['html']}")
-            import webbrowser
-            webbrowser.open(Path(result["html"]).as_uri())
-        self.quit()
+            print(f"Session saved: {result['json']}")
+            self.main.show_results(result["data"], result["html"])   # results inside the app
+        else:
+            self.main.show_start()
 
     def quit(self):
         self.tracker.stop()
@@ -381,7 +412,9 @@ def main():
         sys.exit(selftest())
     migrate_legacy_data()
     if args.history:
-        print("History:", build_history())
+        app = FocusCheckApp(debug=args.debug)
+        app.main.show_history()
+        app.run()
         return
     if args.demo_report:
         demo_report()
