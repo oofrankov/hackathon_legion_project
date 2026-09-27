@@ -42,9 +42,18 @@ class SessionRecorder:
         return data
 
     def save(self, data):
+        """Atomic write: a crash or full disk never leaves a half-written session file."""
         os.makedirs(config.SESSIONS_DIR, exist_ok=True)
         name = f"session_{self.started:%Y%m%d_%H%M%S}.json"
         path = os.path.join(config.SESSIONS_DIR, name)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=1)
+        tmp = path + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=1)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
         return path

@@ -174,7 +174,7 @@ class Widget(tk.Toplevel):
     def _others_text(self):
         return T["widget_others"].format(n=self.others, people="person" if self.others == 1 else "people")
 
-    def show(self, state, elapsed_sec, focus_pct, paused=False, camera_on=True, others=0):
+    def show(self, state, elapsed_sec, focus_pct, paused=False, camera_on=True, others=0, camera_lost=False):
         c = self.canvas
         if bool(others) != bool(self.others):   # the notice row appears/disappears
             self.others = others
@@ -187,7 +187,8 @@ class Widget(tk.Toplevel):
             self._draw_button("pause")
             self._draw_button("camera")
         color = config.PAUSED_COLOR if paused else config.STATE_COLORS.get(state, UI["muted"])
-        label = T["widget_paused"] if paused else config.STATE_LABELS.get(state, state)
+        label = (T["widget_paused"] if paused else T["widget_cam_lost"] if camera_lost
+                 else config.STATE_LABELS.get(state, state))
         if self._flash_job is None and not self.disabled:
             c.itemconfig(self.dot, fill=color)
             c.itemconfig(self.title, text=label)
@@ -261,6 +262,7 @@ def show_meme(master, image_path, anchor_widget=None):
         x = anchor_widget.winfo_x() + anchor_widget.winfo_width() - pop.winfo_width()
         y = anchor_widget.winfo_y() + anchor_widget.winfo_height() + 8
         pop.geometry(f"+{max(0, x)}+{y}")
+    return pop
     pop.bind("<Button-1>", lambda _e: pop.destroy())
     lbl.bind("<Button-1>", lambda _e: pop.destroy())
     master.after(config.MEME_POPUP_SEC * 1000, lambda: pop.winfo_exists() and pop.destroy())
@@ -284,3 +286,4 @@ def ask_recalibration(master, anchor_widget, on_yes):
     x = anchor_widget.winfo_x() + anchor_widget.winfo_width() - pop.winfo_width()
     y = anchor_widget.winfo_y() + anchor_widget.winfo_height() + 8
     pop.geometry(f"+{max(0, x)}+{y}")
+    return pop

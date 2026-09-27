@@ -60,6 +60,7 @@ class FaceTracker:
         self._signals = FaceSignals()
         self._thread = None
         self._stop = threading.Event()
+        self._run_id = 0           # each start() gets its own id + stop event
         self.error: Optional[str] = None
         self.camera_on = False
         self.preview_enabled = False
@@ -67,20 +68,30 @@ class FaceTracker:
         self._owner = OwnerLock()  # memory only; cleared at session end
 
     def start(self):
-        if self._thread and self._thread.is_alive():
+        """Start a capture thread. A previous thread that is still finishing keeps its
+        own (already set) stop event and can no longer touch the shared state."""
+        if self._thread and self._thread.is_alive() and not self._stop.is_set():
             return
         self.error = None
-        self._stop.clear()
+        self._stop = threading.Event()
         with self._lock:
+            self._run_id += 1
+            run_id = self._run_id
             self._signals = FaceSignals(last_face_ts=time.monotonic())
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = threading.Thread(target=self._run, args=(run_id, self._stop), daemon=True)
         self._thread.start()
 
     def stop(self):
+        """Ask the thread to stop; waits briefly so the camera is usually released at once,
+        but never blocks the UI for long (a stuck read finishes on its own later)."""
         self._stop.set()
+        with self._lock:
+            self._run_id += 1          # the old thread's writes are ignored from now on
+            self._signals = FaceSignals(last_face_ts=time.monotonic())
+            self._preview = None
+        self.camera_on = False
         if self._thread:
-            self._thread.join(timeout=3)
-        self._thread = None
+            self._thread.join(timeout=0.5)
 
     # --- owner lock (thread-safe wrappers) -------------------------------
     def set_owner_anchor(self, anchor):
@@ -115,7 +126,22 @@ class FaceTracker:
             s = self._signals
             return FaceSignals(**s.__dict__)
 
-    def _run(self):
+    def _run(self, run_id, stop):
+        try:
+            self._capture(run_id, stop)
+        except Exception as e:   # anything unexpected: report it, never keep a stale face
+            with self._lock:
+                if run_id == self._run_id:
+                    self.error = f"Camera error: {type(e).__name__}"
+        finally:
+            with self._lock:
+                if run_id == self._run_id:
+                    self.camera_on = False
+                    self._preview = None
+                    self._signals.face_present = False
+                    self._signals.faces_count = self._signals.others_count = 0
+
+    def _capture(self, run_id, stop):
         import cv2
         import mediapipe as mp
         from mediapipe.tasks.python import BaseOptions, vision
@@ -130,7 +156,7 @@ class FaceTracker:
             )
             landmarker = vision.FaceLandmarker.create_from_options(options)
         except Exception as e:  # missing model etc.
-            self.error = f"Face model error: {e}"
+            self.error = f"Face model error: {type(e).__name__}"
             return
 
         cap = cv2.VideoCapture(config.CAMERA_INDEX)
@@ -142,18 +168,30 @@ class FaceTracker:
             landmarker.close()
             return
 
-        self.camera_on = True
+        with self._lock:
+            if run_id != self._run_id:      # stopped while the camera was opening
+                cap.release()
+                landmarker.close()
+                return
+            self.camera_on = True
         period = 1.0 / config.TARGET_FPS
         t0 = time.monotonic()
+        last_ok = time.monotonic()
         yaw_s = pitch_s = None
         a = config.ANGLE_SMOOTHING
         try:
-            while not self._stop.is_set():
+            while not stop.is_set():
                 started = time.monotonic()
                 ok, frame = cap.read()
                 if not ok:
+                    if time.monotonic() - last_ok > config.CAMERA_READ_TIMEOUT_SEC:
+                        with self._lock:
+                            if run_id == self._run_id:
+                                self.error = config.TEXTS["err_camera_lost"]
+                        return   # finally: camera off, face cleared -> AWAY, not FOCUSED
                     time.sleep(0.05)
                     continue
+                last_ok = time.monotonic()
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
                 ts_ms = int((time.monotonic() - t0) * 1000)
@@ -168,6 +206,8 @@ class FaceTracker:
 
                 now = time.monotonic()
                 with self._lock:
+                    if run_id != self._run_id:   # this thread was stopped: drop the frame
+                        break
                     s = self._signals
                     s.ts = now
                     s.frame_id += 1
@@ -205,6 +245,3 @@ class FaceTracker:
         finally:
             cap.release()
             landmarker.close()
-            self.camera_on = False
-            with self._lock:
-                self._preview = None

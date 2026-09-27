@@ -1,4 +1,4 @@
-"""Synthetic session events for the demo report and tests (no camera)."""
+"""Synthetic session for `app.py --demo-report` and the tests (no camera)."""
 import config
 
 GAZE_FOR_STATE = {

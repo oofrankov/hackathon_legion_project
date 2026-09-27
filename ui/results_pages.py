@@ -81,7 +81,7 @@ def _two_columns(parent):
 
 
 class ResultsPage(ScrollArea):
-    def __init__(self, win, ctrl, data, report_path=None):
+    def __init__(self, win, ctrl, data, report_path=None, save_error=None, on_retry=None):
         super().__init__(win)
         self.body.configure(padx=px(28), pady=px(20))
         s = data.get("summary") or {}
@@ -91,6 +91,15 @@ class ResultsPage(ScrollArea):
         _header(self, T["new_session"], ctrl.show_start, buttons)
         _title(self.body, T["results_title"], " · ".join(
             x for x in (data.get("name") or data.get("task"), fmt_date(data.get("started_at"))) if x))
+        if save_error:   # never hide a failed save: the data is still in memory
+            banner = tk.Frame(self.body, bg="#3b1515", highlightthickness=1, highlightbackground=UI["danger"],
+                              padx=px(14), pady=px(10))
+            banner.pack(fill="x", pady=(px(12), 0))
+            if on_retry:
+                RoundButton(banner, T["retry_save"], on_retry, "primary", height=34, width=130,
+                            font_size=10).pack(side="right", padx=(px(10), 0))
+            auto_wrap(tk.Label(banner, text=save_error, bg="#3b1515", fg="#fecaca", font=(F, 10),
+                               justify="left", anchor="w")).pack(side="left", fill="x", expand=True)
 
         # hero: score + expected vs. real
         hero = card(self.body)

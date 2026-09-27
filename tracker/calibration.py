@@ -30,6 +30,9 @@ def make_calibration(yaws, pitches, margin=None, down_margin=None):
     )
 
 
+CALIBRATION_POINTS = 5   # center + 4 corners
+
+
 class Calibrator:
     def __init__(self):
         self.yaws, self.pitches = [], []
@@ -37,9 +40,10 @@ class Calibrator:
         self.frames_with_face = 0
         self.frames_multi_face = 0     # frames with 2+ people: calibration must be repeated
         self._boxes = []               # (cx, cy, size) of the single face -> owner anchor
+        self.per_point = [0] * CALIBRATION_POINTS   # angle samples for each dot
         self._last_frame_id = -1
 
-    def add(self, signals, collect=True):
+    def add(self, signals, collect=True, point=0):
         """Feed the latest FaceSignals; each camera frame is counted once."""
         if signals.frame_id == self._last_frame_id or signals.frame_id == 0:
             return
@@ -54,6 +58,8 @@ class Calibrator:
             if collect:
                 self.yaws.append(signals.yaw)
                 self.pitches.append(signals.pitch)
+                if 0 <= point < CALIBRATION_POINTS:
+                    self.per_point[point] += 1
 
     @property
     def face_ratio(self):
@@ -65,9 +71,14 @@ class Calibrator:
         return (self.frames_total > 0 and
                 self.frames_multi_face / self.frames_total > config.CALIBRATION_MAX_MULTI_FACE_RATIO)
 
+    @property
+    def points_covered(self):
+        """Every dot (center + 4 corners) got enough real measurements."""
+        return all(n >= config.CALIBRATION_MIN_SAMPLES_PER_POINT for n in self.per_point)
+
     def ok(self):
         return (not self.multi_face and self.face_ratio >= config.CALIBRATION_MIN_FACE_RATIO
-                and len(self.yaws) >= 5 and self._boxes)
+                and self.points_covered and bool(self._boxes))
 
     def anchor(self):
         """Owner anchor: average face center and size during calibration."""

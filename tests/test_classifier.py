@@ -4,7 +4,7 @@ from monitors.app_settings import default_settings
 from monitors.window import Rules, WindowInfo, WindowMonitor, classify, is_own_window
 from session.advice import get_advice
 from session.summary import compute_summary
-from tests.fake_session import fake_events
+from session.demo import fake_events
 from tracker.calibration import make_calibration
 from tracker.classifier import (AWAY, DOWN, SCREEN, SIDE, StateSmoother,
                                 classify_gaze, combine_state)
@@ -184,3 +184,13 @@ def test_old_sessions_with_phone_state_are_folded_into_looking_away():
     normalize_session(data)
     assert [e["state"] for e in data["events"]] == [config.LOOKING_AWAY, config.FOCUSED]
     assert data["summary"] == {"looking_away_min": 2.0}
+
+
+def test_frozen_camera_frame_is_not_a_face():
+    """Old frame (camera unplugged/frozen) must end up AWAY, never stay SCREEN/FOCUSED."""
+    from tracker.classifier import GazeTracker
+    from tracker.face import FaceSignals
+    gaze = GazeTracker(CALIB)
+    s = FaceSignals(ts=10.0, last_face_ts=10.0, face_present=True, frame_id=5)
+    assert gaze.update(s, 10.5) == SCREEN
+    assert gaze.update(s, 3610.0) == AWAY

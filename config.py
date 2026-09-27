@@ -49,9 +49,14 @@ ANGLE_SMOOTHING = 0.6            # EMA factor for yaw/pitch (1 = no smoothing)
 CALIBRATION_SECONDS = 10
 CALIBRATION_POINT_SKIP_SEC = 0.4  # ignore samples right after the dot moves
 CALIBRATION_MIN_FACE_RATIO = 0.5
+CALIBRATION_MIN_SAMPLES_PER_POINT = 3   # fresh head-pose samples needed at each dot
 CALIBRATION_MARGIN_DEG = 8       # added around the calibrated yaw/pitch range
 DOWN_MARGIN_DEG = 12             # head this far below calibrated max pitch = DOWN
 NO_FACE_SEC = 2
+FRAME_STALE_SEC = 1.5            # older camera frame = no face (frozen/unplugged camera)
+CAMERA_READ_TIMEOUT_SEC = 3      # no frames this long -> "camera lost" error
+FIRST_FRAME_TIMEOUT_SEC = 15     # calibration gives up waiting for the camera
+MAX_TICK_GAP_SEC = 5             # bigger gaps between UI ticks are not counted as session time
 EAR_CLOSED_THRESHOLD = 0.2
 STATE_HOLD_SEC = 1.5            # lower = faster reaction, more flicker
 
@@ -213,12 +218,19 @@ TEXTS = {
     "apps_custom_label": "Add your own (app or site name, e.g. chess.com, minecraft)",
     "apps_add": "Add",
     "apps_save": "Save",
+    "macos_note": "On macOS FocusCheck sees app names only: apps like Discord or Steam are detected, "
+                  "but not sites inside a browser (e.g. YouTube in Safari or Chrome).",
     "wayland_warning": "Wayland session detected: window detection is off (all windows count as work). "
                        "Log in with an Xorg/X11 session for full FocusCheck.",
     "start_button": "Start session",
     "privacy_note": "Video never leaves this device and is never saved. "
                     "Keys and window titles are not recorded.",
     "err_camera": "Could not open the camera. Close other apps using it and try again.",
+    "err_camera_lost": "The camera stopped sending images. Check the cable or other apps using it.",
+    "widget_cam_lost": "Camera unavailable",
+    "err_save": "Could not save this session ({err}). The results below are only in memory: "
+                "free some disk space or fix the permissions, then press Retry.",
+    "retry_save": "Retry save",
     "calib_title": "Calibration",
     "calib_hint": "Look at the dot. Keep your usual working posture.",
     "calib_starting": "Starting camera…",

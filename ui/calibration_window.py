@@ -36,11 +36,18 @@ class CalibrationWindow(tk.Toplevel):
                 (self.w - pad, self.h - pad), (pad, self.h - pad)]
 
     def _wait_for_camera(self):
+        if not hasattr(self, "_wait_since"):
+            self._wait_since = time.monotonic()
         if self.tracker.error:
             self._fail(self.tracker.error)
             return
-        if self.tracker.latest().frame_id > 0:
+        s = self.tracker.latest()
+        if s.frame_id > 0 and time.monotonic() - s.ts <= config.FRAME_STALE_SEC:
+            del self._wait_since
             self._begin()
+        elif time.monotonic() - self._wait_since > config.FIRST_FRAME_TIMEOUT_SEC:
+            del self._wait_since
+            self._fail(T["err_camera"])
         else:
             self._job = self.after(100, self._wait_for_camera)
 
@@ -67,7 +74,11 @@ class CalibrationWindow(tk.Toplevel):
         else:
             self.canvas.coords(self.dot, x - r, y - r, x + r, y + r)
         in_point = elapsed - idx * per_point
-        self.calib.add(self.tracker.latest(), collect=in_point >= config.CALIBRATION_POINT_SKIP_SEC)
+        signals = self.tracker.latest()
+        if self.tracker.error or time.monotonic() - signals.ts > config.CAMERA_READ_TIMEOUT_SEC:
+            self._fail(self.tracker.error or T["err_camera_lost"])   # camera stopped mid-way
+            return
+        self.calib.add(signals, collect=in_point >= config.CALIBRATION_POINT_SKIP_SEC, point=idx)
         self._job = self.after(50, self._tick)
 
     def _finish(self):
@@ -93,7 +104,9 @@ class CalibrationWindow(tk.Toplevel):
         self.canvas.create_window(self.w / 2, self.h / 2 + 170, window=self.buttons)
 
     def _retry(self):
-        if self.tracker.error:  # camera failed: restart it
+        stale = time.monotonic() - self.tracker.latest().ts > config.FRAME_STALE_SEC
+        if self.tracker.error or not self.tracker.camera_on or stale:  # camera problem: restart it
+            self.tracker.stop()
             self.tracker.start()
             if self.buttons:
                 self.buttons.destroy()

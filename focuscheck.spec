@@ -13,6 +13,7 @@ datas = [
     ("models/face_landmarker.task", "models"),
     ("report/template.html", "report"),
     ("report/history_template.html", "report"),
+    ("report/vendor/chart.umd.js", "report/vendor"),
     ("assets", "assets"),
 ]
 binaries = []

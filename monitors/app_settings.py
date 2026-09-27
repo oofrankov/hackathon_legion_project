@@ -22,10 +22,16 @@ def load_settings(path=None):
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        settings["enabled"].update({k: bool(v) for k, v in data.get("enabled", {}).items()})
-        settings["custom"] = [str(c) for c in data.get("custom", []) if str(c).strip()]
     except (OSError, ValueError):
-        pass
+        return settings, False           # unreadable file: defaults, the user can re-pick
+    if not isinstance(data, dict):
+        return settings, False
+    enabled, custom = data.get("enabled"), data.get("custom")
+    if isinstance(enabled, dict):
+        known = settings["enabled"]
+        settings["enabled"].update({k: v for k, v in enabled.items() if k in known and isinstance(v, bool)})
+    if isinstance(custom, list):
+        settings["custom"] = [c.strip() for c in custom if isinstance(c, str) and c.strip()]
     return settings, False
 
 

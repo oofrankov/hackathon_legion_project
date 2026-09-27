@@ -92,13 +92,14 @@ class FocusCheckApp:
     def open_session(self, filename):
         """Open a past session's report inside the app."""
         path = Path(config.SESSIONS_DIR, filename)
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return
         from report.report import report_filename
-        from session.summary import normalize_session
-        normalize_session(data)
+        from session.summary import validate_session
+        try:
+            data = validate_session(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            data = None
+        if data is None:
+            return
         html = Path(config.SESSIONS_DIR, report_filename(data.get("started_at")))
         self.main.show_results(data, str(html) if html.exists() else None)
 
@@ -133,6 +134,7 @@ class FocusCheckApp:
 
         self.paused = False
         self.recalibrating = False
+        self.recal_prompt = None
         self.stopping = False
         self.camera_error_shown = False
         self.active_sec = 0.0          # session time without pauses
@@ -154,9 +156,15 @@ class FocusCheckApp:
             return
         now = time.monotonic()
         dt, self.last_tick = now - self.last_tick, now
+        if dt > config.MAX_TICK_GAP_SEC:
+            # the UI was frozen or the laptop slept: nothing was observed in between,
+            # so this time is not invented as seconds of the current state
+            print(f"[session] skipped {dt:.0f} s without observations")
+            dt = 0.0
 
         if self.tracker.consume_recalibration_hint() and not (self.paused or self.recalibrating):
-            ask_recalibration(self.root, self.widget, self.recalibrate)
+            self._close_recal_prompt()
+            self.recal_prompt = ask_recalibration(self.root, self.widget, self.recalibrate)
 
         if not (self.paused or self.recalibrating):
             if self.tracker.error and not self.camera_error_shown:
@@ -183,8 +191,9 @@ class FocusCheckApp:
         n = len(self.recorder.events)
         focus_pct = round(self.focused_sec / n * 100) if n else 100
         others = 0 if self.paused else self.tracker.latest().others_count
+        camera_lost = bool(self.tracker.error) and not (self.paused or self.recalibrating)
         self.widget.show(self.state, self.active_sec, focus_pct, paused=self.paused,
-                         camera_on=self.tracker.camera_on, others=others)
+                         camera_on=self.tracker.camera_on, others=others, camera_lost=camera_lost)
         self.root.after(config.UI_TICK_MS, self.tick)
 
     def check_nudge(self):
@@ -215,7 +224,18 @@ class FocusCheckApp:
         self.root.after(int(1000 / config.PREVIEW_FPS), self.preview_loop)
 
     # --- recalibration after a long absence ------------------------------
+    def _close_recal_prompt(self):
+        prompt, self.recal_prompt = getattr(self, "recal_prompt", None), None
+        if prompt is not None and prompt.winfo_exists():
+            prompt.destroy()
+
     def recalibrate(self):
+        # the prompt may be stale: only recalibrate a running, unpaused session
+        if self.stopping or self.paused or self.recalibrating:
+            return
+        self.recal_prompt = None
+        if not self.tracker.camera_on:
+            self.tracker.start()              # the calibration window waits for a fresh frame
         self.recalibrating = True             # session time does not run meanwhile
         self._old_anchor, self._old_calib = self.tracker.owner_anchor(), self.gaze.calib
         self.tracker.set_owner_anchor(None)
@@ -241,6 +261,7 @@ class FocusCheckApp:
             return
         self.paused = not self.paused
         if self.paused:
+            self._close_recal_prompt()
             self.tracker.stop()          # camera is off during pause
             self.non_focus_since = None
         else:
@@ -253,6 +274,7 @@ class FocusCheckApp:
         if self.stopping:
             return
         self.stopping = True
+        self._close_recal_prompt()
         self.tracker.stop()
         self.tracker.set_owner_anchor(None)   # the owner anchor lives only during the session
         self.input.stop()
@@ -262,27 +284,46 @@ class FocusCheckApp:
 
         def work():  # file writes off the UI thread
             summary = compute_summary(rec.events, rec.meta["self_estimate_pct"], len(rec.nudges))
-            advice = get_advice(summary)
-            data = rec.to_dict(summary, advice)
-            result["data"] = data
-            result["json"] = rec.save(data)
-            result["html"] = build_report(data, open_browser=False)
-            build_history(open_browser=False)  # keep the "All sessions" page up to date
+            data = rec.to_dict(summary, get_advice(summary))
+            result["data"] = data          # results are shown even if saving fails
+            result.update(self._save_session(rec, data))
 
         th = threading.Thread(target=work, daemon=True)
         th.start()
         self._wait_report(th, result)
+
+    def _save_session(self, rec, data):
+        """Returns {"json", "html"} or {"error": "..."} naming the failed step."""
+        out = {}
+        try:
+            out["json"] = rec.save(data)
+        except Exception as e:
+            return {"error": config.TEXTS["err_save"].format(err=f"{type(e).__name__}: {e}")}
+        try:
+            out["html"] = build_report(data, open_browser=False)
+            build_history(open_browser=False)   # keep the "All sessions" page up to date
+        except Exception as e:   # the session itself is saved; only the HTML export failed
+            print(f"[report] HTML export failed: {type(e).__name__}")
+        return out
+
+    def retry_save(self, rec, data):
+        out = self._save_session(rec, data)
+        self.main.show_results(data, out.get("html"), save_error=out.get("error"),
+                               on_retry=lambda: self.retry_save(rec, data))
 
     def _wait_report(self, th, result):
         if th.is_alive():
             self.root.after(200, self._wait_report, th, result)
             return
         self.widget.destroy()
-        if "html" in result:
-            print(f"Session saved: {result['json']}")
-            self.main.show_results(result["data"], result["html"])   # results inside the app
-        else:
+        if "data" not in result:     # computing the summary itself failed
             self.main.show_start()
+            return
+        if "json" in result:
+            print(f"Session saved: {result['json']}")
+        rec = self.recorder
+        self.main.show_results(result["data"], result.get("html"), save_error=result.get("error"),
+                               on_retry=lambda: self.retry_save(rec, result["data"]))
 
     def quit(self):
         self.tracker.stop()
@@ -295,7 +336,7 @@ class FocusCheckApp:
 
 def demo_report():
     """Builds a report from a synthetic 30-minute session (no camera needed)."""
-    from tests.fake_session import fake_events
+    from session.demo import fake_events
     events = fake_events()
     rec = SessionRecorder(85, 90, "Demo: thesis chapter 2", session_number=1)
     rec.events = events
@@ -354,7 +395,8 @@ def selftest():
             landmarker.detect(blank)
 
     def templates():
-        for rel in ("report/template.html", "report/history_template.html", "assets/icon.png"):
+        for rel in ("report/template.html", "report/history_template.html", "report/vendor/chart.umd.js",
+                    "models/face_landmarker.task", "assets/icon.png"):
             if not config.resource_path(rel).is_file():
                 raise FileNotFoundError(rel)
 

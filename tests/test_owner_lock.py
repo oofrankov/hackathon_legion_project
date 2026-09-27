@@ -129,7 +129,16 @@ def test_calibration_anchor_is_average_of_single_face():
     from tracker.calibration import Calibrator
     cal = Calibrator()
     for i in range(1, 41):
-        cal.add(_signals(i, 1, (0.4 if i % 2 else 0.6, 0.5, 0.3)))
+        cal.add(_signals(i, 1, (0.4 if i % 2 else 0.6, 0.5, 0.3)), point=(i - 1) // 8)
     assert cal.ok() and not cal.multi_face
     (cx, cy), size = cal.anchor()
     assert abs(cx - 0.5) < 1e-9 and abs(cy - 0.5) < 1e-9 and abs(size - 0.3) < 1e-9
+
+
+def test_calibration_fails_if_camera_stops_after_a_few_frames():
+    """Five good frames at the first dot, then nothing: not a valid calibration."""
+    from tracker.calibration import Calibrator
+    cal = Calibrator()
+    for i in range(1, 6):
+        cal.add(_signals(i, 1, (0.5, 0.5, 0.3)), point=0)
+    assert not cal.points_covered and not cal.ok()

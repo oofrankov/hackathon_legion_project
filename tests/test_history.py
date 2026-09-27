@@ -3,7 +3,7 @@ import json
 
 from report.history import build_history, compute_overall, load_sessions
 from session.summary import compute_summary
-from tests.fake_session import fake_events
+from session.demo import fake_events
 
 
 def write_session(folder, stamp, **meta):
@@ -42,3 +42,34 @@ def test_empty_history_page(tmp_path):
     path = build_history(tmp_path, open_browser=False)
     html = open(path, encoding="utf-8").read()
     assert '"sessions": []' in html
+
+
+def test_short_session_counts_exact_seconds(tmp_path):
+    """2 s focus + 5 s away: 29 %, not 0 % from rounded minutes (review item 7)."""
+    import config
+    events = [{"t": i, "state": config.FOCUSED} for i in range(2)] + \
+             [{"t": i, "state": config.AWAY} for i in range(2, 7)]
+    data = {"started_at": "2026-09-27T10:00:00", "events": events, "summary": compute_summary(events, 80, 0)}
+    (tmp_path / "session_20260927_100000.json").write_text(json.dumps(data))
+    rows = load_sessions(tmp_path)
+    assert len(rows) == 1 and rows[0]["focus_pct"] == 29
+    assert compute_overall(rows)["focus_pct"] == 29
+
+
+def test_broken_session_files_are_skipped(tmp_path):
+    write_session(tmp_path, "27T09:00:00", name="Good")
+    (tmp_path / "session_bad_list.json").write_text("[]")
+    (tmp_path / "session_bad_types.json").write_text(json.dumps(
+        {"started_at": 5, "events": "x", "summary": {"total_min": "a", "state_sec": None}}))
+    (tmp_path / "session_null.json").write_text("null")
+    rows = load_sessions(tmp_path)
+    assert [r["name"] for r in rows] == ["Good"]
+
+
+def test_bad_settings_fall_back_to_defaults(tmp_path):
+    from monitors.app_settings import default_settings, load_settings
+    for content in ('{"enabled": null, "custom": 5}', "[]", '{"enabled": {"youtube": "yes"}}'):
+        p = tmp_path / "s.json"
+        p.write_text(content)
+        settings, first_run = load_settings(p)
+        assert settings == default_settings() and not first_run

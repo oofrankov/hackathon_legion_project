@@ -11,27 +11,33 @@ requires-python = ">=3.10,<3.13"   # MediaPipe 0.10.21 has no wheels for 3.13
 dependencies = [
   # MediaPipe itself requires opencv-contrib-python; a second (headless) OpenCV
   # would clash with it. We never open OpenCV windows (UI is tkinter).
-  "opencv-contrib-python",
+  # versions we build and test with (reproducible builds)
+  "opencv-contrib-python==4.11.0.86",
   "mediapipe==0.10.21",
-  "numpy<2",
-  "pynput",
-  "psutil",
-  "python-xlib; sys_platform == 'linux'",
-  "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
+  "numpy==1.26.4",
+  "pynput==1.8.2",
+  "psutil==7.2.2",
+  "python-xlib==0.33; sys_platform == 'linux'",
+  "pyobjc-framework-Cocoa>=10; sys_platform == 'darwin'",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pyinstaller>=6.10"]
+dev = ["pytest==9.1.1", "pyinstaller==6.22.3"]
 
 [project.scripts]
 focuscheck = "app:main"
 
 [tool.setuptools]
 py-modules = ["app", "config"]
-packages = ["tracker", "monitors", "ui", "session", "report"]
+# models/ and assets/ are data-only folders; they must sit next to config.py,
+# where config.resource_path() looks for them (same layout as the source tree)
+packages = ["tracker", "monitors", "ui", "session", "report", "models", "assets", "assets.memes"]
 
 [tool.setuptools.package-data]
-report = ["*.html"]
+report = ["*.html", "vendor/*.js", "vendor/*.md"]
+models = ["*.task"]
+assets = ["*.png", "*.ico", "*.icns"]
+"assets.memes" = ["*.png", "*.gif"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

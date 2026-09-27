@@ -1,10 +1,10 @@
 # Same as pyproject.toml (source of truth). Dev: pip install -e ".[dev]"
-opencv-contrib-python
+opencv-contrib-python==4.11.0.86
 mediapipe==0.10.21
-numpy<2
-pynput
-psutil
-python-xlib; sys_platform == "linux"
-pyobjc-framework-Cocoa; sys_platform == "darwin"
-pytest
-pyinstaller>=6.10
+numpy==1.26.4
+pynput==1.8.2
+psutil==7.2.2
+python-xlib==0.33; sys_platform == "linux"
+pyobjc-framework-Cocoa>=10; sys_platform == "darwin"
+pytest==9.1.1
+pyinstaller==6.22.3

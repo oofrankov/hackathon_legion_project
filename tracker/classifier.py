@@ -59,7 +59,11 @@ class GazeTracker:
         self.gaze = SCREEN
 
     def update(self, signals, now):
-        without_face = 0.0 if signals.face_present else now - signals.last_face_ts
-        self.gaze = classify_gaze(signals.face_present, signals.yaw, signals.pitch,
+        # a face only counts if the frame is fresh: a frozen/lost camera must not
+        # keep reporting the last pose forever
+        fresh = now - signals.ts <= config.FRAME_STALE_SEC
+        present = signals.face_present and fresh
+        without_face = 0.0 if present else now - signals.last_face_ts
+        self.gaze = classify_gaze(present, signals.yaw, signals.pitch,
                                   self.calib, without_face, self.gaze)
         return self.gaze

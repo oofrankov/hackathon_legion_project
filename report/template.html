@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FocusCheck Report</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- fully offline: no external requests; Chart.js is inlined from report/vendor -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<script>/*__CHART_JS__*/</script>
 <style>
   :root {
     --bg: #f6f7f9; --card: #ffffff; --text: #111827; --muted: #6b7280;
@@ -128,7 +131,7 @@ $("meta").textContent = (S.name ? S.name + " · " : "") +
   started.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 
 // hero
-$("score").innerHTML = `${M.focus_pct}<small>%</small>`;
+$("score").append(String(Number(M.focus_pct) || 0), el("small", {}, "%"));  // no innerHTML with data
 const good = M.focus_pct >= M.self_estimate_pct;
 $("vs").innerHTML = "";
 $("vs").append(

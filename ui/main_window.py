@@ -1,5 +1,6 @@
 """The one main window of FocusCheck. Pages: start, apps list, results, history."""
 import copy
+import sys
 import tkinter as tk
 from datetime import datetime
 
@@ -54,9 +55,9 @@ class MainWindow(tk.Toplevel):
     def show_apps(self, first_run=False):
         self._show(AppsPage, START_W, False, first_run)
 
-    def show_results(self, data, report_path=None):
+    def show_results(self, data, report_path=None, save_error=None, on_retry=None):
         from ui.results_pages import ResultsPage
-        self._show(ResultsPage, WIDE_W, True, data, report_path)
+        self._show(ResultsPage, WIDE_W, True, data, report_path, save_error, on_retry)
 
     def show_history(self):
         from ui.results_pages import HistoryPage
@@ -88,6 +89,9 @@ class StartPage(tk.Frame):
 
         tk.Label(self, text=T["app_title"], bg=UI["bg"], fg=UI["text"], font=(F, 24, "bold")).pack(anchor="w")
         tk.Label(self, text=T["start_subtitle"], bg=UI["bg"], fg=UI["muted"], font=(F, 11)).pack(anchor="w", pady=(0, px(16)))
+        if sys.platform == "darwin":   # browser tab titles are not available on macOS
+            auto_wrap(tk.Label(self, text=T["macos_note"], bg=UI["field"], fg=UI["muted"], font=(F, 9),
+                               justify="left", anchor="w", padx=px(8), pady=px(6))).pack(fill="x", pady=(0, px(12)))
         if ctrl.wayland:
             auto_wrap(tk.Label(self, text=T["wayland_warning"], bg="#3b2f12", fg="#fcd34d", font=(F, 9),
                                justify="left", anchor="w", padx=px(8), pady=px(6))).pack(fill="x", pady=(0, px(12)))

@@ -47,7 +47,7 @@ pip install -e ".[dev]"
 python app.py
 ```
 
-Everything works offline. The coaching tips in the report are simple rules over your session numbers; no AI service is called.
+Everything works offline. The coaching tips in the report are simple rules over your session numbers; no AI service is called. Exported HTML reports are self-contained: Chart.js is embedded from `report/vendor/` (a verified copy of the npm package), and a Content-Security-Policy blocks all network requests.
 
 | Command | What it does |
 |---|---|
@@ -113,6 +113,14 @@ FocusCheck follows only the person who calibrated, the **owner**. It recognises 
 - A returning face is accepted only inside the owner's zone (`OWNER_RETURN_RADIUS` around the anchor) and only after it stays there for `OWNER_RETURN_HOLD_SEC`, so people walking past are not taken for the owner. After an absence longer than `OWNER_RECALIBRATE_AFTER_SEC` (5 min), the app offers a quick recalibration.
 - The logic lives in `tracker/owner_lock.py` and has no camera dependency. It is tested on synthetic boxes in `tests/test_owner_lock.py`.
 
+## Robustness
+
+- **Camera stops or freezes**: a frame older than `FRAME_STALE_SEC` never counts as a face, so the state becomes **Away**, never Focused. After `CAMERA_READ_TIMEOUT_SEC` without frames the widget shows **"Camera unavailable"**.
+- **UI freeze or laptop sleep**: gaps longer than `MAX_TICK_GAP_SEC` are not counted as session time, so no invented seconds appear.
+- **Calibration** needs fresh measurements at every one of the 5 dots, and it gives up with a clear message if the camera does not start or stops midway.
+- **Saving**: session files are written atomically. If saving fails (full disk, permissions), the results are still shown from memory with the error and a **Retry save** button.
+- **History** adds up exact seconds per session (`total_sec`, `state_sec`); minutes are rounded only for display. Broken or hand-edited session and settings files are skipped or reset to defaults instead of crashing the app.
+
 ## Limitations
 
 - **Owner lock without biometrics.** If the owner leaves and someone else sits exactly in their place at the same distance from the camera, that person can be taken for the owner. This is a deliberate trade-off for not using face recognition.
@@ -121,6 +129,7 @@ FocusCheck follows only the person who calibrated, the **owner**. It recognises 
 - The builds are not code-signed yet, so Windows SmartScreen and macOS Gatekeeper warn on first launch. Signing is planned after the hackathon.
 - CI can only check that each build installs, passes the tests and passes `--selftest`. Camera, windows and keyboard have to be tested by hand on each system.
 - Builds are large (~170 MB AppImage, ~450 MB unpacked) because of MediaPipe and OpenCV.
+- The history page reads every session file when it opens. With hundreds of long sessions it may take a moment; a compact summary index would fix this.
 - The macOS build is Apple Silicon only. Intel Macs would need an extra `macos-13` build.
 
 ## Privacy (hard rules)
@@ -142,8 +151,8 @@ config.py            thresholds, keywords, texts, resource_path() / user_data_di
 tracker/             face.py (MediaPipe thread), calibration.py, classifier.py, owner_lock.py
 monitors/            window.py (active window category), input_activity.py (pynput), app_settings.py
 ui/                  main_window.py (start + apps pages), results_pages.py (report + history), charts.py, theme.py (DPI scaling), calibration_window.py, widget.py
-session/             recorder.py (events → JSON), summary.py (metrics), advice.py (offline tips)
-report/              report.py, history.py + HTML templates (Chart.js)
+session/             recorder.py (events → JSON), summary.py (metrics + file validation), advice.py (offline tips), demo.py
+report/              report.py, history.py + HTML templates, vendor/ (bundled Chart.js)
 assets/              icons (+ optional memes/)
 tests/               unit tests on synthetic data
 pyproject.toml       dependencies (platform-specific ones with markers)

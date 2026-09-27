@@ -4,7 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FocusCheck History</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- fully offline: no external requests; Chart.js is inlined from report/vendor -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<script>/*__CHART_JS__*/</script>
 <style>
   :root {
     --bg: #f6f7f9; --card: #ffffff; --text: #111827; --muted: #6b7280;
@@ -90,7 +93,7 @@ if (!ROWS.length) {
   // --- overall hero
   const hero = el("section", { className: "card hero" });
   const left = el("div"); left.append(el("h2", {}, "Overall focus"));
-  const score = el("div", { className: "score" }); score.innerHTML = `${O.focus_pct}<small>%</small>`; left.append(score);
+  const score = el("div", { className: "score" }); score.append(String(Number(O.focus_pct) || 0), el("small", {}, "%")); left.append(score);
   const right = el("div"); right.append(el("h2", {}, "The big picture"));
   const head = el("div", { className: "headline" });
   head.append(el("span", {}, `${fmtMin(O.focused_min)} of real focus in ${fmtMin(O.total_min)} tracked.`), el("br"));
